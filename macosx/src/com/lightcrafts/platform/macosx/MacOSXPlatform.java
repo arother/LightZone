@@ -14,7 +14,7 @@ import ch.randelshofer.quaqua.filechooser.QuaquaFileSystemView;
 import ch.randelshofer.quaqua.QuaquaLookAndFeel;
 
 import com.lightcrafts.platform.*;
-import com.lightcrafts.utils.ColorProfileInfo;
+import com.lightcrafts.image.color.ColorProfileInfo;
 import com.lightcrafts.utils.file.FileUtil;
 import com.lightcrafts.utils.Version;
 
@@ -26,14 +26,28 @@ import com.lightcrafts.ui.LightZoneSkin;
  */
 public final class MacOSXPlatform extends Platform {
 
+    private final static String home = System.getProperty("user.home");
+
+    private final static File[] SystemProfileDirs = new File[] {
+        new File("/Library/ColorSync/Profiles"),
+        new File("/System/Library/ColorSync/Profiles")
+    };
+
+    private final static File UserProfileDir = new File(
+        home, "Library/ColorSync/Profiles"
+    );
+
+    @Override
     public void bringAppToFront( String appName ) {
         AppleScript.bringAppToFront( appName );
     }
 
+    @Override
     public AlertDialog getAlertDialog() {
         return DefaultAlertDialog.INSTANCE; // new MacOSXAlertDialog();
     }
 
+    @Override
     public ICC_Profile getDisplayProfile() {
         try {
             final String path =
@@ -46,53 +60,36 @@ public final class MacOSXPlatform extends Platform {
         }
     }
 
+    @Override
     public File getDefaultImageDirectory() {
-        final String home = System.getProperty( "user.home" );
         return new File( home, "Pictures" );
     }
 
+    @Override
     public synchronized Collection<ColorProfileInfo> getExportProfiles() {
         if ( m_exportProfiles == null ) {
-            final Collection<ColorProfileInfo> colorspaceProfiles =
-                MacOSXColorProfileManager.getProfilesFor( CM_COLORSPACE_CLASS );
-            final Collection<ColorProfileInfo> displayProfiles =
-                MacOSXColorProfileManager.getProfilesFor( CM_DISPLAY_CLASS );
-            final Collection<ColorProfileInfo> outputProfiles =
-                MacOSXColorProfileManager.getProfilesFor( CM_OUTPUT_CLASS );
-
-            m_exportProfiles = new ArrayList<ColorProfileInfo>();
-
-            if ( colorspaceProfiles != null )
-                m_exportProfiles.addAll( colorspaceProfiles );
-            if ( displayProfiles != null )
-                m_exportProfiles.addAll( displayProfiles );
-            if ( outputProfiles != null )
-                m_exportProfiles.addAll( outputProfiles );
-
-            if ( m_exportProfiles.isEmpty() )
-                m_exportProfiles = null;
-            else
-                m_exportProfiles =
-                    Collections.unmodifiableCollection( m_exportProfiles );
+            m_exportProfiles = new HashSet<ColorProfileInfo>();
+            for (File SystemProfileDir : SystemProfileDirs) {
+                m_exportProfiles.addAll(getColorProfiles(SystemProfileDir));
+            }
+            m_exportProfiles.addAll(getColorProfiles(UserProfileDir));
         }
         return m_exportProfiles;
     }
 
-    public FileChooser getFileChooser() {
-        return MacOSXFileChooser.getFileChooser();
-    }
-
+    @Override
     public FileSystemView getFileSystemView() {
         return QuaquaFileSystemView.getQuaquaFileSystemView();
     }
 
+    @Override
     public File getLightZoneDocumentsDirectory() {
-        final String home = System.getProperty( "user.home" );
         final String appName = Version.getApplicationName();
         final String path = "Library/Application Support/" + appName;
         return new File( home, path );
     }
 
+    @Override
     public LookAndFeel getLookAndFeel() {
         LookAndFeel lookAndFeel = LightZoneSkin.getLightZoneLookAndFeel();
 
@@ -105,7 +102,6 @@ public final class MacOSXPlatform extends Platform {
             Object[] quaquaKeys = quaquaDefaults.keySet().toArray();
 
             String[] fromQuaqua = new String[] {
-                    "FileChooser",
                     "FileView",
                     "Tree",
                     "MenuBar",
@@ -126,14 +122,12 @@ public final class MacOSXPlatform extends Platform {
         return lookAndFeel;
     }
 
+    @Override
     public String[] getPathComponentsToPicturesFolder() {
         return new String[]{ System.getProperty( "user.name" ), "Pictures" };
     }
 
-    public int getPhysicalMemoryInMB() {
-        return MacOSXMemory.getPhysicalMemoryInMB();
-    }
-
+    @Override
     public Collection<ColorProfileInfo> getPrinterProfiles() {
         return getExportProfiles();
         /* return MacOSXColorProfileManager.getProfilesFor(
@@ -141,14 +135,12 @@ public final class MacOSXPlatform extends Platform {
         ); */
     }
 
+    @Override
     public ProgressDialog getProgressDialog() {
         return new DefaultProgressDialog(); // new MacOSXProgressDialog();
     }
 
-    public boolean hasInternetConnectionTo( String hostName ) {
-        return MacOSXInternetConnection.hasConnectionTo( hostName );
-    }
-
+    @Override
     public File isSpecialFile( File file ) {
         file = FileUtil.resolveAliasFile( file );
         if ( !(file instanceof MacOSXSmartFolder) &&
@@ -157,40 +149,34 @@ public final class MacOSXPlatform extends Platform {
         return file;
     }
 
+    @Override
     public void loadLibraries() throws UnsatisfiedLinkError {
         System.loadLibrary( "MacOSX" );
     }
 
+    @Override
     public boolean moveFilesToTrash( String[] pathNames ) {
         return MacOSXFileUtil.moveToTrash( pathNames );
     }
 
+    @Override
     public void readyToOpenFiles() {
-        if ( System.getProperty( "IDE" ) != null )
-            ApplicationAdapterForIDE.initialize();
-        else
-            MacOSXLauncher.readyToOpenFiles();
+        MacOSXLauncher.readyToOpenFiles();
     }
 
+    @Override
     public String resolveAliasFile( File file ) {
         return MacOSXFileUtil.resolveAlias( file.getAbsolutePath() );
     }
 
-    public boolean showFileInFolder( String path ) {
-        return MacOSXFileUtil.showInFinder( path );
-    }
-
+    @Override
     public void showHelpTopic( String topic ) {
         MacOSXHelp.showHelpTopic( topic );
     }
 
-    public PrinterLayer getPrinterLayer() {
-        return MacOSXPrinterLayer.INSTANCE;
-    }
-
-    public static final int WHEEL_HORIZONTAL_SCROLL = 2;
-
 /*
+    public static final int WHEEL_HORIZONTAL_SCROLLg = 2;
+
     static class MouseWheelDispatcher implements MacOSXMightyMouse.Listener {
         final JFrame frame;
         final MouseWheelListener listener;

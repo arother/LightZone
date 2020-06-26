@@ -11,7 +11,7 @@
   <property name="macosx-jar" value="products/lightcrafts-apple.jar"/>
 
   <!-- The default maxmemory for the run target. -->
-  <property name="maxmemory" value="256m"/>
+  <property name="maxmemory" value="512m"/>
 
   <exec executable="cat" vmlauncher="false" failonerror="true"
         outputproperty="app-version">
@@ -30,13 +30,18 @@
   <target name="common">
     <ant dir="${common-dir}" target="jar"/>
     <exec executable="make" dir="products" failonerror="true"
-          vmlauncher="false"/>
+          vmlauncher="false">
+      <arg value="-j"/>
+    </exec>
   </target>
 
   <target name="javac" depends="common">
     <mkdir dir="build"/>
-    <javac destdir="build" source="1.6" target="1.6" debug="true">
+    <mkdir dir="javah"/>
+    <javac destdir="build" includeantruntime="false" debug="true"
+           release="11" nativeheaderdir="javah">
       <src path="src"/>
+      <compilerarg value="-XDignore.symbol.file"/>
       <classpath>
         <pathelement location="/System/Library/Java/"/>
         <fileset dir="${common-dir}/products">
@@ -100,9 +105,6 @@
     <java classname="com.lightcrafts.platform.macosx.MacOSXLauncher"
           dir="products" failonerror="true" fork="true"
           maxmemory="${maxmemory}">
-      <!--
-      <jvmarg value="-XrunShark"/>
-      -->
       <classpath>
         <pathelement location="/System/Library/Java/"/>
         <fileset dir="products">
@@ -115,18 +117,9 @@
       <sysproperty key="java.library.path" value="."/>
       <sysproperty key="lightcrafts.debug" value="1"/>
       <sysproperty key="apple.awt.graphics.EnableDeferredUpdates" value="false"/>
-      <sysproperty key="file.encoding" value="utf-8" />
+      <sysproperty key="file.encoding" value="utf-8"/>
+      <sysproperty key="lensfun.dir" value="./share/lensfun"/>
     </java>
-  </target>
-
-  <!--===== Crash Reporter bundle build ====================================-->
-
-  <target name="crash-reporter" depends="helpers">
-    <exec executable="make" dir="helpers/CrashReporter" failonerror="true"
-          vmlauncher="false">
-      <arg value="UNIVERSAL=${UNIVERSAL}"/>
-      <arg value="bundle"/>
-    </exec>
   </target>
 
   <!--===== Make Mac OS X application bundles ==============================-->
@@ -138,68 +131,8 @@
     <delete dir="${app-dir}" quiet="true"/>
   </target>
 
-  <target name="resources">
-    <copy todir="${bundle-contents}">
-      <fileset dir="resources" excludes=".git"/>
-    </copy>
-  </target>
-
-  <target name="build-bundle"
-    depends="jar, crash-reporter, delete-bundle, resources">
-
-    <exec executable="${common-dir}/tools/bin/lc-git-revision"
-          outputproperty="git-revision" vmlauncher="false" failonerror="true"/>
-    <copy file="resources/Info.plist" todir="${bundle-contents}"
-          overwrite="true">
-      <filterset>
-        <filter token="APPNAME" value="${app-name}"/>
-        <filter token="BUILD" value="${git-revision}"/>
-        <filter token="BUNDLEID" value="com.lightcrafts.${app-name}"/>
-        <filter token="LICENSETYPE" value="${licensetype}"/>
-        <filter token="VERSION" value="${app-version}"/>
-      </filterset>
-    </copy>
-    <copy file="resources/lc_version.plist"
-          todir="${bundle-contents}" overwrite="true">
-      <filterset>
-        <filter token="APPNAME" value="${app-name}"/>
-        <filter token="VERSION" value="${app-version}"/>
-        <filter token="BUILD" value="${git-revision}"/>
-      </filterset>
-    </copy>
-
-    <!-- The JavaAppLauncher is copied to LightZone so "LightZone" appears in
-         the output of the "ps" command. -->
-    <copy file="helpers/JavaAppLauncher/JavaAppLauncher"
-          tofile="${bundle-contents}/MacOS/${app-name}"/>
-    <chmod file="${bundle-contents}/MacOS/${app-name}" perm="775"/>
-    <copy todir="${bundle-contents}/Resources">
-      <fileset dir="helpers/JavaAppLauncher/Resources" excludes=".git"/>
-    </copy>
-
-    <copy todir="${bundle-resources}/Java">
-      <fileset dir="products" excludes=".git">
-        <include name="dcraw"/>
-        <include name="LightZone-forkd"/>
-        <include name="EWSMacCompress.tar.gz"/>
-        <include name="**/*.dylib"/>
-        <include name="**/*.jar"/>
-        <include name="**/*.jnilib"/>
-      </fileset>
-    </copy>
-    <chmod file="${bundle-resources}/Java/dcraw" perm="775"/>
-    <chmod file="${bundle-resources}/Java/LightZone-forkd" perm="775"/>
-
-    <exec executable="make" dir="help" failonerror="true" vmlauncher="false">
-      <arg value="APP_NAME=${app-name}"/>
-    </exec>
-
-    <copy todir="${bundle-resources}/CrashReporter.app">
-      <fileset dir="helpers/CrashReporter/CrashReporter.app"/>
-    </copy>
-    <chmod file="${bundle-resources}/CrashReporter.app/Contents/MacOS/CrashReporter"
-           perm="775"/>
-  </target>
+  <property name="jdk-provider" value="oracle"/>
+  <import file="${jdk-provider}.xml"/>
 
   <!--===== Make a dmg file ================================================-->
 
@@ -210,28 +143,6 @@
       <arg value="UNIVERSAL=${UNIVERSAL}"/>
       <arg value="user"/>
     </exec>
-  </target>
-
-  <!--===== CruiseControl ==================================================-->
-
-  <property name="cc-dir" value="dmg/cruisecontrol"/>
-
-  <target name="cc-build">
-    <antcall target="cc-clean"/>
-    <exec executable="${common-dir}/tools/bin/lc-git-branch"
-          outputproperty="git-branch" vmlauncher="false" failonerror="true"/>
-    <exec executable="${common-dir}/tools/bin/lc-git-revision"
-          outputproperty="git-revision" vmlauncher="false" failonerror="true"/>
-
-    <mkdir dir="dmg/cruisecontrol"/>
-
-    <antcall target="dmg"/>
-    <move file="dmg/${app-name}.dmg"
-          tofile="${cc-dir}/${app-name}-${git-branch}-r${git-revision}.dmg"/>
-  </target>
-
-  <target name="cc-clean">
-    <delete dir="${cc-dir}"/>
   </target>
 
   <!--===== Make a zip file ================================================-->
@@ -260,23 +171,29 @@
 
   <target name="clean-up">
     <ant dir="${common-dir}" target="${clean-method}"/>
-    <delete dir="build"/>
-    <delete dir="${app-dir}"/>
+    <parallel>
+      <delete dir="build"/>
+      <delete dir="javah"/>
+      <delete dir="${app-dir}"/>
+    </parallel>
     <exec executable="make" dir="dmg">
+      <arg value="-j"/>
       <arg value="${clean-method}"/>
     </exec>
     <exec executable="make" dir="helpers">
+      <arg value="-j"/>
       <arg value="UNIVERSAL=1"/>
       <arg value="${clean-method}"/>
     </exec>
     <exec executable="make" dir="jnisrc">
+      <arg value="-j"/>
       <arg value="UNIVERSAL=1"/>
       <arg value="${clean-method}"/>
     </exec>
     <exec executable="make" dir="products">
+      <arg value="-j"/>
       <arg value="${clean-method}"/>
     </exec>
-    <antcall target="cc-clean"/>
   </target>
 
   <target name="distclean">

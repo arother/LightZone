@@ -8,8 +8,10 @@ import com.lightcrafts.model.Operation;
 import com.lightcrafts.jai.utils.Transform;
 import com.lightcrafts.jai.utils.Functions;
 
-import com.lightcrafts.mediax.jai.PlanarImage;
+import javax.media.jai.PlanarImage;
 import java.text.DecimalFormat;
+
+import static com.lightcrafts.ui.help.HelpConstants.HELP_TOOL_BLUR;
 
 /**
  * Created by IntelliJ IDEA.
@@ -20,17 +22,20 @@ import java.text.DecimalFormat;
  */
 
 public class GaussianBlurOperation extends BlendedOperation {
-    private final double step = 0.1;
 
     public GaussianBlurOperation(Rendering rendering) {
         super(rendering, type);
         addSliderKey("Radius");
 
+        setHelpTopic(HELP_TOOL_BLUR);
+
         DecimalFormat format = new DecimalFormat("0.0");
 
+        final double step = 0.1;
         setSliderConfig("Radius", new SliderConfig(0.1, 500, radius, step, true, format));
     }
 
+    @Override
     public boolean neutralDefault() {
         return false;
     }
@@ -39,14 +44,15 @@ public class GaussianBlurOperation extends BlendedOperation {
 
     private double radius = 5.0;
 
+    @Override
     public void setSliderValue(String key, double value) {
         value = roundValue(key, value);
 
-        if (key == "Radius" && radius != value) {
+        if (key.equals("Radius") && radius != value)
             radius = value;
-        } else
+        else
             return;
-        
+
         super.setSliderValue(key, value);
     }
 
@@ -58,19 +64,23 @@ public class GaussianBlurOperation extends BlendedOperation {
             this.op = op;
         }
 
+        @Override
         public PlanarImage setFront() {
             return Functions.gaussianBlur(back, rendering, op, radius * scale);
         }
     }
 
+    @Override
     protected void updateOp(Transform op) {
         op.update();
     }
 
+    @Override
     protected BlendedTransform createBlendedOp(PlanarImage source) {
         return new GaussMask(source, this);
     }
 
+    @Override
     public OperationType getType() {
         return type;
     }

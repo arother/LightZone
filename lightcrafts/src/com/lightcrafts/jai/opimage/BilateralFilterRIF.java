@@ -2,10 +2,10 @@
 
 package com.lightcrafts.jai.opimage;
 
-import com.lightcrafts.media.jai.opimage.RIFUtil;
+import com.sun.media.jai.opimage.RIFUtil;
 
-import com.lightcrafts.mediax.jai.ImageLayout;
-import com.lightcrafts.mediax.jai.BorderExtender;
+import javax.media.jai.ImageLayout;
+import javax.media.jai.BorderExtender;
 import java.awt.image.RenderedImage;
 import java.awt.image.renderable.ParameterBlock;
 import java.awt.image.renderable.RenderedImageFactory;
@@ -29,12 +29,11 @@ public class BilateralFilterRIF implements RenderedImageFactory {
 
         float sigma_d = paramBlock.getFloatParameter(0);
         float sigma_r = paramBlock.getFloatParameter(1);
-        boolean luminosity = ((Boolean) paramBlock.getObjectParameter(2)).booleanValue();
 
         return new BilateralFilterOpImage(paramBlock.getRenderedSource(0),
                                                    extender,
                                                    renderHints,
                                                    layout,
-                                                   sigma_d, sigma_r, luminosity);
+                                                   sigma_d, sigma_r);
     }
 }

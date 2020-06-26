@@ -15,6 +15,8 @@ import java.io.File;
 import java.io.IOException;
 import java.util.prefs.Preferences;
 
+import static com.lightcrafts.prefs.Locale.LOCALE;
+
 class DisplayProfileItem extends PreferencesItem implements ActionListener {
 
     private final static String Package = "/com/lightcrafts/platform/linux";
@@ -31,31 +33,29 @@ class DisplayProfileItem extends PreferencesItem implements ActionListener {
         text = new JTextField(20);
         text.setEditable(false);
 
-        chooserButton = new JButton("Choose");
-        chooserButton.setToolTipText(
-            "Pick a new color profile for this display"
-        );
+        chooserButton = new JButton(LOCALE.get("DisplayProfileItemButton"));
+        chooserButton.setToolTipText(LOCALE.get("DisplayProfileItemToolTip"));
         chooserButton.addActionListener(this);
 
         addHelpListeners();
     }
 
+    @Override
     public String getLabel() {
-        return "Display Color Profile";
+        return LOCALE.get("DisplayProfileItemLabel");
     }
 
+    @Override
     public String getHelp(MouseEvent e) {
-        return
-            "Set the color profile of your display device.  LightZone must " +
-            "know the correct color profile for your display in order to " +
-            "show colors correctly.  If you do not set this option, " +
-            "LightZone will use an sRGB default profile.";
+        return LOCALE.get("DisplayProfileItemHelp");
     }
 
+    @Override
     public boolean requiresRestart() {
         return true;
     }
 
+    @Override
     public JComponent getComponent() {
         Box box = Box.createHorizontalBox();
         box.add(text);
@@ -64,11 +64,13 @@ class DisplayProfileItem extends PreferencesItem implements ActionListener {
         return box;
     }
 
+    @Override
     public void commit() {
         String path = text.getText();
         Prefs.put(Key, path);
     }
 
+    @Override
     public void restore() {
         String path = Prefs.get(Key, null);
         if (path != null) {
@@ -81,7 +83,9 @@ class DisplayProfileItem extends PreferencesItem implements ActionListener {
         }
     }
 
+    // TODO: l10n
     // Conduct the dialog to accept a new color profile.
+    @Override
     public void actionPerformed(ActionEvent event) {
         FileChooser chooser = Platform.getPlatform().getFileChooser();
         AlertDialog alert = Platform.getPlatform().getAlertDialog();
@@ -94,7 +98,8 @@ class DisplayProfileItem extends PreferencesItem implements ActionListener {
         }
         File file = new File(path);
         file = chooser.openFile(
-            "Display Color Profile", file, null, null
+            LOCALE.get("DisplayProfileDialogTitle"), file, null,
+                (javafx.stage.FileChooser.ExtensionFilter) null
         );
         if (file != null) {
             if (! file.isFile()) {

@@ -2,22 +2,22 @@
 
 package com.lightcrafts.model.ImageEditor;
 
-import com.lightcrafts.mediax.jai.*;
-import com.lightcrafts.model.OperationType;
-import com.lightcrafts.model.SliderConfig;
+import com.lightcrafts.jai.JAIContext;
 import com.lightcrafts.jai.opimage.FastBilateralFilterOpImage;
 import com.lightcrafts.jai.opimage.HDROpImage;
-import com.lightcrafts.jai.opimage.HDROpImage2;
-import com.lightcrafts.jai.utils.Transform;
 import com.lightcrafts.jai.utils.Functions;
-import com.lightcrafts.jai.JAIContext;
-import com.lightcrafts.utils.ColorScience;
+import com.lightcrafts.jai.utils.Transform;
+import com.lightcrafts.model.OperationType;
+import com.lightcrafts.model.SliderConfig;
 
-import java.text.DecimalFormat;
+import javax.media.jai.JAI;
+import javax.media.jai.PlanarImage;
 import java.awt.image.RenderedImage;
 import java.awt.image.renderable.ParameterBlock;
-import java.awt.*;
 import java.lang.ref.SoftReference;
+import java.text.DecimalFormat;
+
+import static com.lightcrafts.ui.help.HelpConstants.HELP_TOOL_RELIGHT;
 
 /**
  * Copyryght (C) 2007 Light Crafts, Inc.
@@ -41,6 +41,8 @@ public class HDROperationV2 extends BlendedOperation {
     public HDROperationV2(Rendering rendering, OperationType type) {
         super(rendering, type);
 
+        setHelpTopic(HELP_TOOL_RELIGHT);
+
         DecimalFormat format = new DecimalFormat("0.00");
 
         addSliderKey(SHADOWS);
@@ -63,6 +65,7 @@ public class HDROperationV2 extends BlendedOperation {
         }
     }
 
+    @Override
     public boolean neutralDefault() {
         return false;
     }
@@ -71,18 +74,19 @@ public class HDROperationV2 extends BlendedOperation {
     static final OperationType typeV3 = new OperationTypeImpl("Tone Mapper V3");
     static final OperationType typeV4 = new OperationTypeImpl("Tone Mapper V4");
 
+    @Override
     public void setSliderValue(String key, double value) {
         value = roundValue(key, value);
 
-        if (key == FUZZ && fuzz != value) {
+        if (key.equals(FUZZ) && fuzz != value) {
             fuzz = value;
-        } else if (key == DEPTH && depth != value) {
+        } else if (key.equals(DEPTH) && depth != value) {
             depth = value;
-        } else if (key == HIGHLIGHTS && highlights != value) {
+        } else if (key.equals(HIGHLIGHTS) && highlights != value) {
             highlights = value;
-        } else if (key == DETAIL && detail != value) {
+        } else if (key.equals(DETAIL) && detail != value) {
             detail = value;
-        } else if (key == SHADOWS && shadows != value) {
+        } else if (key.equals(SHADOWS) && shadows != value) {
             shadows = value;
         } else
             return;
@@ -98,26 +102,13 @@ public class HDROperationV2 extends BlendedOperation {
         SoftReference<PlanarImage> lastBack = new SoftReference<PlanarImage>(null);
         SoftReference<PlanarImage> mask = new SoftReference<PlanarImage>(null);
 
-        int mask_count = 0;
-
         private double last_radius = 0;
         private double last_fuzz = 0;
 
+        @Override
         public PlanarImage setFront() {
             if (lastBack.get() != back || mask.get() == null || depth != last_radius || fuzz != last_fuzz) {
-                RenderedImage singleChannel;
-                if (back.getColorModel().getNumComponents() == 3) {
-                    double[][] yChannel = new double[][]{{ColorScience.Wr, ColorScience.Wg, ColorScience.Wb, 0}};
-
-                    ParameterBlock pb = new ParameterBlock();
-                    pb.addSource( back );
-                    pb.add( yChannel );
-                    singleChannel = JAI.create("BandCombine", pb, null);
-                } else
-                    singleChannel = back;
-
-                BorderExtender copyExtender = BorderExtender.createInstance(BorderExtender.BORDER_COPY);
-                RenderingHints extenderHints = new RenderingHints(JAI.KEY_BORDER_EXTENDER, copyExtender);
+                final RenderedImage singleChannel = createSingleChannel(back);
 
                 PlanarImage maskImage = new FastBilateralFilterOpImage(singleChannel,
                                                                        JAIContext.fileCacheHint,
@@ -129,11 +120,7 @@ public class HDROperationV2 extends BlendedOperation {
                 maskImage = JAI.create("bandselect", pb, null);
 
                 if (fuzz > 0.1) {
-                    KernelJAI kernel = Functions.getGaussKernel(10 * (fuzz - 0.1) * scale);
-                    pb = new ParameterBlock();
-                    pb.addSource(maskImage);
-                    pb.add(kernel);
-                    maskImage = JAI.create("LCSeparableConvolve", pb, extenderHints);
+                    maskImage = Functions.fastGaussianBlur(maskImage, 10 * (fuzz - 0.1) * scale);
                 }
 
                 last_radius = fuzz;
@@ -147,14 +134,17 @@ public class HDROperationV2 extends BlendedOperation {
         }
     }
 
+    @Override
     protected void updateOp(Transform op) {
         op.update();
     }
 
+    @Override
     protected BlendedTransform createBlendedOp(PlanarImage source) {
         return new ToneMaperTransform(source);
     }
 
+    @Override
     public OperationType getType() {
         return type;
     }

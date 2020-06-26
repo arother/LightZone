@@ -1,10 +1,12 @@
 /* Copyright (C) 2005-2011 Fabio Riccardi */
+/* Copyright (C) 2016-     Masahiro Kitagawa */
 
 package com.lightcrafts.ui.operation;
 
 import com.lightcrafts.model.Engine;
 import com.lightcrafts.model.Operation;
 import com.lightcrafts.model.OperationType;
+import com.lightcrafts.ui.toolkit.IconFontFactory;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
@@ -33,10 +35,13 @@ public class OpActions {
     private final static ResourceBundle Resources = ResourceBundle.getBundle(
         "com/lightcrafts/ui/operation/OpActions"
     );
+    private final static ResourceBundle Resources_ALL = ResourceBundle.getBundle(
+        "com/lightcrafts/ui/operation/OpActions_ALL"
+    );
 
     static {
         OpKeys = new LinkedList<String>();
-        String names = Resources.getString("Operations");
+        String names = Resources_ALL.getString("Operations");
         StringTokenizer tokens = new StringTokenizer(names, ",");
         while (tokens.hasMoreTokens()) {
             String token = tokens.nextToken();
@@ -111,6 +116,23 @@ public class OpActions {
         action = new AbstractAction(name, icon) {
             public void actionPerformed(ActionEvent event) {
                 stack.addSpotControl();
+            }
+        };
+        action.putValue(IconImageKey, image);
+        action.putValue(Action.SHORT_DESCRIPTION, tooltip);
+        action.putValue(OpKeyPropertyKey, key);
+        actions.add(action);
+
+        // Add an Action for the LensCorrections:
+
+        key = "LensCorrections";
+        name = getName(key);
+        image = getImage(key);
+        icon = new ImageIcon(image);
+        tooltip = Resources.getString(key + "_Tooltip");
+        action = new AbstractAction(name, icon) {
+            public void actionPerformed(ActionEvent event) {
+                stack.addLensCorrectionsControl();
             }
         };
         action.putValue(IconImageKey, image);
@@ -214,9 +236,13 @@ public class OpActions {
     }
 
     private static BufferedImage getImage(String key) {
+        final BufferedImage bi = IconFontFactory.buildIconImage(key, 26);
+        if (bi != null) {
+            return bi;
+        }
         String iconName;
         try {
-            iconName = Resources.getString(key + "_Icon");
+            iconName = Resources_ALL.getString(key + "_Icon");
         } catch (MissingResourceException e) {
             iconName = "generic";
         }

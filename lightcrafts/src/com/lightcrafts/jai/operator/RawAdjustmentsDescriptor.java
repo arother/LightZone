@@ -15,11 +15,11 @@ package com.lightcrafts.jai.operator;
 
 import java.awt.RenderingHints;
 import java.awt.image.RenderedImage;
-import com.lightcrafts.mediax.jai.JAI;
-import com.lightcrafts.mediax.jai.OperationDescriptorImpl;
-import com.lightcrafts.mediax.jai.ParameterBlockJAI;
-import com.lightcrafts.mediax.jai.RenderedOp;
-import com.lightcrafts.mediax.jai.registry.RenderedRegistryMode;
+import javax.media.jai.JAI;
+import javax.media.jai.OperationDescriptorImpl;
+import javax.media.jai.ParameterBlockJAI;
+import javax.media.jai.RenderedOp;
+import javax.media.jai.registry.RenderedRegistryMode;
 
 public class RawAdjustmentsDescriptor extends OperationDescriptorImpl {
 
@@ -58,7 +58,7 @@ public class RawAdjustmentsDescriptor extends OperationDescriptorImpl {
     }
 
     /**
-     * Performs binary kernel based Erode operation on the image.
+     * Performs RAW adjustment operation on the image.
      *
      * <p>Creates a <code>ParameterBlockJAI</code> from all
      * supplied arguments except <code>hints</code> and invokes
@@ -69,7 +69,9 @@ public class RawAdjustmentsDescriptor extends OperationDescriptorImpl {
      * @see RenderedOp
      *
      * @param source0 <code>RenderedImage</code> source 0.
-     * @param kernel The binary convolution kernel.
+     * @param exposure The exposure.
+     * @param colorTemperature The color temperature.
+     * @param cameraRGB The camera RGB matrix.
      * @param hints The <code>RenderingHints</code> to use.
      * May be <code>null</code>.
      * @return The <code>RenderedOp</code> destination.

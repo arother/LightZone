@@ -2,18 +2,17 @@
 
 package com.lightcrafts.model.ImageEditor;
 
+import com.lightcrafts.image.color.ColorScience;
+import com.lightcrafts.jai.JAIContext;
 import com.lightcrafts.jai.utils.Functions;
 import com.lightcrafts.jai.utils.Transform;
-import com.lightcrafts.jai.JAIContext;
 import com.lightcrafts.model.LayerConfig;
 import com.lightcrafts.model.OperationType;
 import com.lightcrafts.model.SliderConfig;
-import com.lightcrafts.utils.ColorScience;
 
-import com.lightcrafts.mediax.jai.*;
+import javax.media.jai.*;
 import java.awt.*;
 import java.awt.geom.AffineTransform;
-import java.awt.image.DataBuffer;
 import java.awt.image.renderable.ParameterBlock;
 import java.text.DecimalFormat;
 
@@ -27,11 +26,6 @@ import java.text.DecimalFormat;
 public class ContrastMaskOperation extends BlendedOperation {
     private double radius = 128;
     private double gamma = 2.2;
-    private KernelJAI kernel = null;
-    private short[] tableDataUShort = new short[0x10000];
-    private byte[] tableDataByte = new byte[0x100];
-    private LookupTableJAI byteLut = null;
-    private LookupTableJAI ushortLut = null;
 
     public ContrastMaskOperation(Rendering rendering) {
         super(rendering, type);
@@ -44,44 +38,26 @@ public class ContrastMaskOperation extends BlendedOperation {
         setSliderConfig("Gamma", new SliderConfig(0.2, 5, gamma, .1, false, format));
     }
 
+    @Override
     public boolean neutralDefault() {
         return false;
     }
 
     static final OperationType type = new OperationTypeImpl("Contrast Mask");
 
+    @Override
     public void setSliderValue(String key, double value) {
         value = roundValue(key, value);
-        
-        if (key == "Radius" && radius != value) {
+
+        if (key.equals("Radius") && radius != value) {
             radius = value;
-            kernel = null;
-        } else if (key == "Gamma" && gamma != value) {
+        } else if (key.equals("Gamma") && gamma != value) {
             gamma = value;
-            byteLut = null;
-            ushortLut = null;
-        } else
+        } else {
             return;
+        }
 
         super.setSliderValue(key, value);
-    }
-
-    private LookupTableJAI computeGammaTable(int dataType) {
-        if (dataType == DataBuffer.TYPE_BYTE) {
-            if (byteLut != null)
-                return byteLut;
-            for (int i = 0; i < tableDataByte.length; i++) {
-                tableDataByte[i] = (byte) (0xFF * Math.pow(i / (double) 0xFF, gamma) + 0.5);
-            }
-            return byteLut = new LookupTableJAI(tableDataByte);
-        } else {
-            if (ushortLut != null)
-                return ushortLut;
-            for (int i = 0; i < tableDataUShort.length; i++) {
-                tableDataUShort[i] = (short) (0xFFFF * Math.pow(i / (double) 0xFFFF, gamma) + 0.5);
-            }
-            return ushortLut = new LookupTableJAI(tableDataUShort, true);
-        }
     }
 
     private class ContrastMask extends BlendedTransform {
@@ -91,12 +67,9 @@ public class ContrastMaskOperation extends BlendedOperation {
             super(source);
         }
 
+        @Override
         public PlanarImage setFront() {
-            double[][] transform = {
-                { ColorScience.Wr, ColorScience.Wg, ColorScience.Wb, 0 }
-            };
-
-            // Calculate a blurred desautuated inverted version of the source as a mask
+            // Calculate a blurred desaturated inverted version of the source as a mask
             double newRadius = radius * scale;
             double rescale = 1;
             int divideByTwo = 1;
@@ -128,31 +101,29 @@ public class ContrastMaskOperation extends BlendedOperation {
                 layoutHints.add(hints);
                 layoutHints.add(JAIContext.noCacheHint);
                 scaleDown = JAI.create("Affine", pb, layoutHints);
-            } else
+            } else {
                 scaleDown = back;
+            }
 
             if (scaleDown.getColorModel().getNumComponents() == 3) {
                 ParameterBlock pb = new ParameterBlock();
                 pb.addSource(scaleDown);
+                double[][] transform = {
+                        {ColorScience.Wr, ColorScience.Wg, ColorScience.Wb, 0}
+                };
                 pb.add(transform);
                 scaleDown = JAI.create("BandCombine", pb, JAIContext.noCacheHint);  // Desaturate, single banded
             }
 
             scaleDown = JAI.create("Not", scaleDown, JAIContext.noCacheHint);       // Invert
-            LookupTableJAI table = computeGammaTable(scaleDown.getSampleModel().getDataType());
+            LookupTableJAI table = Functions.computeGammaTable(scaleDown.getSampleModel().getDataType(), gamma);
             ParameterBlock pb = new ParameterBlock();
             pb.addSource(scaleDown);
             pb.add(table);
             // we cache this since convolution scans its input multiple times
             gammaCurve = JAI.create("lookup", pb, null /*JAIContext.noCacheHint*/);
 
-            kernel = Functions.getGaussKernel(newRadius);
-            pb = new ParameterBlock();
-            pb.addSource(gammaCurve);
-            pb.add(kernel);
-            // RenderingHints convolveHints = new RenderingHints(hints);
-            // convolveHints.add(JAIContext.noCacheHint);
-            RenderedOp blur = JAI.create("LCSeparableConvolve", pb, hints);    // Gaussian Blur
+            final RenderedOp blur = Functions.fastGaussianBlur(gammaCurve, newRadius);
 
             if (rescale != 1) {
                 pb = new ParameterBlock();
@@ -168,23 +139,28 @@ public class ContrastMaskOperation extends BlendedOperation {
                 resultLayoutHints.add(hints);
                 resultLayoutHints.add(JAIContext.noCacheHint);
                 return JAI.create("Affine", pb, resultLayoutHints);
-            } else
+            } else {
                 return blur;
+            }
         }
     }
 
+    @Override
     protected void updateOp(Transform op) {
         op.update();
     }
 
+    @Override
     protected BlendedTransform createBlendedOp(PlanarImage source) {
         return new ContrastMaskOperation.ContrastMask(source);
     }
 
+    @Override
     public OperationType getType() {
         return type;
     }
 
+    @Override
     public LayerConfig getDefaultLayerConfig() {
         return new LayerConfig(new LayerModeImpl("Soft Light"), .5);
     }

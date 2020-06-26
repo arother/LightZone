@@ -76,12 +76,8 @@ public final class XMPMetadataReader {
      * @see #readFrom(InputStream)
      */
     public static ImageMetadata readFrom( File file ) throws IOException {
-        final FileInputStream fis = new FileInputStream( file );
-        try {
-            return readFrom( fis );
-        }
-        finally {
-            fis.close();
+        try (FileInputStream fis = new FileInputStream(file)) {
+            return readFrom(fis);
         }
     }
 
@@ -113,7 +109,11 @@ public final class XMPMetadataReader {
                                ImageMetadataDirectory dir ) {
         for ( Node node : elements ) {
             final Element dirElement = (Element)node;
-            final String tagName = dirElement.getLocalName();
+            //
+            // Use getTagName() since getLocalName() always returns null.
+            //
+            // final String tagName = dirElement.getLocalName();
+            final String tagName = dirElement.getTagName().replaceAll( ".*:", "" );
             final ImageMetaTagInfo tagInfo = dir.getTagInfoFor( tagName );
             if ( tagInfo == null )
                 continue;

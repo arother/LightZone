@@ -2,7 +2,11 @@
 
 // standard
 #include <X11/Xlib.h>
+#include <X11/XKBlib.h>
 #include <iostream>
+#ifdef DEBUG
+#include <cassert>
+#endif
 
 // local
 #include "LC_JNIUtils.h"
@@ -23,13 +27,17 @@ using namespace LightCrafts;
  * significant bit has index zero.  Used in keysToKeycode().
  */
 int indexOfBit(char c) {
+#ifdef DEBUG
+    assert(c != 0);
+#endif
     int n;
     for (n=0; n<8; n++) {
         if (c & 0x01) {
-            return n;
+            break;
         }
         c = c >> 1;
     }
+    return n;
 }
 
 /**
@@ -74,7 +82,7 @@ JNIEXPORT jboolean JNICALL LinuxKeyUtil_METHOD(isKeyPressed)
 
     KeyCode code = keysToKeycode(keys);
 
-    KeySym sym = XKeycodeToKeysym(display, code, 0);
+    KeySym sym = XkbKeycodeToKeysym(display, code, 0, 0);
 
     bool pressed = keyCode == sym;
 #ifdef DEBUG

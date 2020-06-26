@@ -98,14 +98,7 @@ JNIEXPORT jmethodID JNICALL LC_getStaticMethodID( JNIEnv*, jclass,
 /**
  * Returns non-zero only if the CPU has SSE2 support.
  */
-#ifdef __APPLE__
-#ifndef __cplusplus
-static // inline functions are not implicitly static in C
-#endif
-       inline int LC_hasSSE2() { return 1; }
-#else
 JNIEXPORT int JNICALL LC_hasSSE2();
-#endif
 
 /**
  * Sets a float field of a Java class to a given value.
@@ -171,9 +164,6 @@ JNIEXPORT void JNICALL LC_throwOutOfMemoryError( JNIEnv*, char const *msg );
 
 #ifdef  __cplusplus
 }
-
-// local
-#include <LC_CPPUtils.h>
 
 namespace LightCrafts {
 
@@ -439,7 +429,7 @@ namespace LightCrafts {
 
         void release() {
             if ( m_cString ) {
-                m_env->ReleaseByteArrayElements( m_jbyteArray, (jbyte *) m_cString, NULL );
+                m_env->ReleaseByteArrayElements( m_jbyteArray, (jbyte *) m_cString, 0 );
                 m_cString = 0;
             }
         }

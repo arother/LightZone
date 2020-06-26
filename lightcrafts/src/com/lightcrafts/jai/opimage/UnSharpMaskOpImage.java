@@ -19,15 +19,15 @@ import java.awt.image.Raster;
 import java.awt.image.RenderedImage;
 import java.awt.image.SampleModel;
 import java.awt.image.WritableRaster;
-import com.lightcrafts.mediax.jai.ImageLayout;
-import com.lightcrafts.mediax.jai.PointOpImage;
-import com.lightcrafts.mediax.jai.RasterAccessor;
-import com.lightcrafts.mediax.jai.RasterFormatTag;
-import com.lightcrafts.mediax.jai.RasterFactory;
+import javax.media.jai.ImageLayout;
+import javax.media.jai.PointOpImage;
+import javax.media.jai.RasterAccessor;
+import javax.media.jai.RasterFormatTag;
+import javax.media.jai.RasterFactory;
 import java.util.Map;
 
-import com.lightcrafts.media.jai.util.ImageUtil;
-import com.lightcrafts.media.jai.util.JDKWorkarounds;
+import com.sun.media.jai.util.ImageUtil;
+import com.sun.media.jai.util.JDKWorkarounds;
 
 final class UnSharpMaskOpImage extends PointOpImage {
 
@@ -211,7 +211,7 @@ final class UnSharpMaskOpImage extends PointOpImage {
 
                 for (int w = 0; w < dwidth; w++) {
                     int src = s1[s1PixelOffset] & 0xFF;
-                    d[dPixelOffset] = ImageUtil.clampByte(src + c * (src - (int) (s2[s2PixelOffset] & 0xFF)) / 0x100);
+                    d[dPixelOffset] = ImageUtil.clampByte(src + c * (src - (s2[s2PixelOffset] & 0xFF)) / 0x100);
 
                     s1PixelOffset += s1PixelStride;
                     s2PixelOffset += s2PixelStride;
@@ -227,20 +227,11 @@ final class UnSharpMaskOpImage extends PointOpImage {
     }
 
     static final int sigmoidTableLenght = 16 * 1024;
-    static final float sigmoidTable[] = new float[sigmoidTableLenght];
+    static final float[] sigmoidTable = new float[sigmoidTableLenght];
 
     static {
         for (int i = 0; i < sigmoidTableLenght; i++)
             sigmoidTable[i] = (float) sigmoid(0.02 * (i - sigmoidTableLenght / 2));
-
-        /* try {
-            FileOutputStream tableDump = new FileOutputStream("/Stuff/tableDump");
-            for (float entry : sigmoidTable)
-                tableDump.write((Float.toString(entry) + '\n').getBytes());
-            tableDump.close();
-        } catch (Exception e) {
-            e.printStackTrace();
-        } */
     }
 
     private static double sigmoidT(double x) {
@@ -437,7 +428,7 @@ final class UnSharpMaskOpImage extends PointOpImage {
 
                     for (int w = 0; w < dwidth; w++) {
                         int src = s1[s1PixelOffset] & 0xFF;
-                        d[dPixelOffset] = ImageUtil.clampRoundByte(src + c * (src - (int) (s2[s2PixelOffset] & 0xFF)) / 0x100);
+                        d[dPixelOffset] = ImageUtil.clampRoundByte(src + c * (src - (s2[s2PixelOffset] & 0xFF)) / 0x100);
 
                         s1PixelOffset += s1PixelStride;
                         s2PixelOffset += s2PixelStride;
@@ -470,7 +461,7 @@ final class UnSharpMaskOpImage extends PointOpImage {
 
                     for (int w = 0; w < dwidth; w++) {
                         int src = s1[s1PixelOffset] & 0xFFFF;
-                        d[dPixelOffset] = ImageUtil.clampRoundUShort(src + c * (src - (int) (s2[s2PixelOffset] & 0xFFFF)) / 0x10000);
+                        d[dPixelOffset] = ImageUtil.clampRoundUShort(src + c * (src - (s2[s2PixelOffset] & 0xFFFF)) / 0x10000);
 
                         s1PixelOffset += s1PixelStride;
                         s2PixelOffset += s2PixelStride;

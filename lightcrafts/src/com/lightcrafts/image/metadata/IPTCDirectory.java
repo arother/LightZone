@@ -30,7 +30,6 @@ import static com.lightcrafts.image.types.AdobeConstants.*;
  *
  * @author Paul J. Lucas [paul@lightcrafts.com]
  */
-@SuppressWarnings({"CloneableClassWithoutClone"})
 public final class IPTCDirectory extends ImageMetadataDirectory implements
     ArtistProvider, CaptureDateTimeProvider, CopyrightProvider, TitleProvider {
 
@@ -62,6 +61,7 @@ public final class IPTCDirectory extends ImageMetadataDirectory implements
     /**
      * {@inheritDoc}
      */
+    @Override
     public String getArtist() {
         final ImageMetaValue value = getValue( IPTC_CREATOR );
         return value != null ? value.getStringValue() : null;
@@ -70,6 +70,7 @@ public final class IPTCDirectory extends ImageMetadataDirectory implements
     /**
      * {@inheritDoc}
      */
+    @Override
     public Date getCaptureDateTime() {
         final ImageMetaValue value = getValue( IPTC_DATE_CREATED );
         return  value instanceof DateMetaValue ?
@@ -79,6 +80,7 @@ public final class IPTCDirectory extends ImageMetadataDirectory implements
     /**
      * {@inheritDoc}
      */
+    @Override
     public String getCopyright() {
         final ImageMetaValue value = getValue( IPTC_COPYRIGHT_NOTICE );
         return value != null ? value.getStringValue() : null;
@@ -89,6 +91,7 @@ public final class IPTCDirectory extends ImageMetadataDirectory implements
      *
      * @return Always returns &quot;IPTC&quot;.
      */
+    @Override
     public String getName() {
         return "IPTC";
     }
@@ -96,6 +99,7 @@ public final class IPTCDirectory extends ImageMetadataDirectory implements
     /**
      * {@inheritDoc}
      */
+    @Override
     public ImageMetaTagInfo getTagInfoFor( Integer id ) {
         return m_tagsByID.get( id );
     }
@@ -103,6 +107,7 @@ public final class IPTCDirectory extends ImageMetadataDirectory implements
     /**
      * {@inheritDoc}
      */
+    @Override
     public ImageMetaTagInfo getTagInfoFor( String name ) {
         return m_tagsByName.get( name );
     }
@@ -110,6 +115,7 @@ public final class IPTCDirectory extends ImageMetadataDirectory implements
     /**
      * {@inheritDoc}
      */
+    @Override
     public String getTitle() {
         final ImageMetaValue value = getValue( IPTC_OBJECT_NAME );
         return value != null ? value.getStringValue() : null;
@@ -118,6 +124,7 @@ public final class IPTCDirectory extends ImageMetadataDirectory implements
     /**
      * {@inheritDoc}
      */
+    @Override
     public boolean isLegalValue( Integer tagID, String value ) {
         if ( !super.isLegalValue( tagID, value ) )
             return false;
@@ -204,6 +211,7 @@ public final class IPTCDirectory extends ImageMetadataDirectory implements
     /**
      * {@inheritDoc}
      */
+    @Override
     public boolean parseXMP( ImageMetaTagInfo tagInfo, Element element,
                              ElementPrefixFilter dirPrefixFilter ) {
         if ( tagInfo.getID() != IPTC_CREATOR_CONTACT_INFO )
@@ -241,6 +249,7 @@ public final class IPTCDirectory extends ImageMetadataDirectory implements
     /**
      * {@inheritDoc}
      */
+    @Override
     public Collection<Element> toXMP( Document xmpDoc ) {
         return toXMP( xmpDoc, XMP_IPTC_NS, XMP_IPTC_PREFIX );
     }
@@ -248,6 +257,7 @@ public final class IPTCDirectory extends ImageMetadataDirectory implements
     /**
      * {@inheritDoc}
      */
+    @Override
     public String valueToString( ImageMetaValue value ) {
         switch ( value.getOwningTagID() ) {
             case IPTC_DATE_CREATED:
@@ -290,6 +300,7 @@ public final class IPTCDirectory extends ImageMetadataDirectory implements
     /**
      * {@inheritDoc}
      */
+    @Override
     protected int getProviderPriorityFor(
         Class<? extends ImageMetadataProvider> provider )
     {
@@ -297,7 +308,7 @@ public final class IPTCDirectory extends ImageMetadataDirectory implements
                 provider == CaptionProvider.class   ||
                 provider == CopyrightProvider.class ||
                 provider == TitleProvider.class ?
-                    Integer.MAX_VALUE - 1 :
+                    PROVIDER_PRIORITY_DEFAULT + 1000 :
                     super.getProviderPriorityFor( provider );
     }
 
@@ -306,6 +317,7 @@ public final class IPTCDirectory extends ImageMetadataDirectory implements
      *
      * @return Returns said {@link ResourceBundle}.
      */
+    @Override
     protected ResourceBundle getTagLabelBundle() {
         return m_tagBundle;
     }
@@ -313,6 +325,7 @@ public final class IPTCDirectory extends ImageMetadataDirectory implements
     /**
      * {@inheritDoc}
      */
+    @Override
     protected Class<? extends ImageMetaTags> getTagsInterface() {
         return IPTCTags.class;
     }
@@ -320,6 +333,7 @@ public final class IPTCDirectory extends ImageMetadataDirectory implements
     /**
      * {@inheritDoc}
      */
+    @Override
     protected Collection<Element> toXMP( Document xmpDoc, String nsURI,
                                          String prefix ) {
         Element rdfDescElement = null;
@@ -475,7 +489,7 @@ public final class IPTCDirectory extends ImageMetadataDirectory implements
                 case META_STRING:
                     for ( String s : imValue.getValues() ) {
                         try {
-                            final byte[] b = s.getBytes( "ISO-8859-1" );
+                            final byte[] b = s.getBytes( "UTF-8" );
                             size += IPTC_ENTRY_HEADER_SIZE + b.length;
                         }
                         catch ( UnsupportedEncodingException e ) {
@@ -589,7 +603,7 @@ public final class IPTCDirectory extends ImageMetadataDirectory implements
      */
     private static void encodeString( ByteBuffer buf, String s ) {
         try {
-            final byte[] b = s.getBytes( "ISO-8859-1" );
+            final byte[] b = s.getBytes( "UTF-8" );
             buf.putShort( (short)b.length );
             buf.put( b );
         }
@@ -717,6 +731,7 @@ public final class IPTCDirectory extends ImageMetadataDirectory implements
         add( IPTC_CAPTION_ABSTRACT, "Caption/Abstract", META_STRING, true, 0 );
         add( IPTC_CATEGORY, "Category", META_STRING, true, 0 );
         add( IPTC_CITY, "City", META_STRING, true, 0 );
+        add( IPTC_CODED_CHARACTER_SET, "CodedCharacterSet", META_STRING, true, 0 );
         add( IPTC_CONTACT, "Contact", META_STRING, true, IPTC_TAG_MULTIVALUE );
         add( IPTC_CONTENT_LOCATION_CODE, "ContentLocationCode", META_STRING, true, IPTC_TAG_MULTIVALUE );
         add( IPTC_CONTENT_LOCATION_NAME, "ContentLocationName", META_STRING, true, IPTC_TAG_MULTIVALUE );

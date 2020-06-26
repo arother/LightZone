@@ -2,18 +2,17 @@
 
 package com.lightcrafts.jai.opimage;
 
-import com.lightcrafts.mediax.jai.PointOpImage;
-import com.lightcrafts.mediax.jai.ImageLayout;
+import com.lightcrafts.image.color.ColorScience;
 import com.lightcrafts.model.ColorSelection;
-import com.lightcrafts.utils.ColorScience;
 
-import java.awt.image.*;
-import java.awt.color.ColorSpace;
+import javax.media.jai.ImageLayout;
+import javax.media.jai.PointOpImage;
+import javax.media.jai.RasterAccessor;
+import javax.media.jai.RasterFormatTag;
 import java.awt.*;
+import java.awt.color.ColorSpace;
+import java.awt.image.*;
 import java.util.Map;
-
-import sun.awt.image.ShortInterleavedRaster;
-import sun.awt.image.ByteInterleavedRaster;
 
 public class ColorSelectionMaskOpImage extends PointOpImage {
     private final ColorSelection colorSelection;
@@ -34,37 +33,40 @@ public class ColorSelectionMaskOpImage extends PointOpImage {
         this.colorSelection = colorSelection;
     }
 
+    @Override
     protected void computeRect(Raster[] sources, WritableRaster dest, Rectangle destRect) {
-        ShortInterleavedRaster src = (ShortInterleavedRaster) sources[0];
-        ByteInterleavedRaster dst = (ByteInterleavedRaster) dest;
+        // Retrieve format tags.
+        RasterFormatTag[] formatTags = getFormatTags();
 
-        dst = (ByteInterleavedRaster) dst.createChild(destRect.x, destRect.y, destRect.width, destRect.height,
-                                                      destRect.x, destRect.y, null);
+        Raster source = sources[0];
+        Rectangle srcRect = mapDestRect(destRect, 0);
+
+        RasterAccessor src = new RasterAccessor(source, srcRect, formatTags[0],
+                getSourceImage(0).getColorModel());
+        RasterAccessor dst = new RasterAccessor(dest, destRect, formatTags[1], getColorModel());
 
         int width = dst.getWidth();
         int height = dst.getHeight();
 
-        byte dstData[] = dst.getDataStorage();
-        int dstBandOffsets[] = dst.getDataOffsets();
+        byte[] dstData = dst.getByteDataArray(0);
+        int[] dstBandOffsets = dst.getBandOffsets();
         int dstLineStride = dst.getScanlineStride();
-        // int dstPixelStride = dst.getPixelStride();
 
-        short srcData[] = src.getDataStorage();
-        int srcBandOffsets[] = src.getDataOffsets();
+        short[] srcData = src.getShortDataArray(0);
+        int[] srcBandOffsets = src.getBandOffsets();
         int srcLineStride = src.getScanlineStride();
-        // int srcPixelStride = src.getPixelStride();
 
         int dstOffset = dstBandOffsets[0];
 
-        float colorSelectionArray[] = {
-            colorSelection.isHueEnabled ? colorSelection.hueLower : 0,
-            colorSelection.isHueEnabled ? colorSelection.hueLowerFeather : 0,
-            colorSelection.isHueEnabled ? colorSelection.hueUpper : 1,
-            colorSelection.isHueEnabled ? colorSelection.hueUpperFeather : 0,
-            colorSelection.isLuminosityEnabled ? colorSelection.luminosityLower : 0,
-            colorSelection.isLuminosityEnabled ? colorSelection.luminosityLowerFeather : 0,
-            colorSelection.isLuminosityEnabled ? colorSelection.luminosityUpper : 1,
-            colorSelection.isLuminosityEnabled ? colorSelection.luminosityUpperFeather : 0
+        float[] colorSelectionArray = {
+                colorSelection.isHueEnabled ? colorSelection.hueLower : 0,
+                colorSelection.isHueEnabled ? colorSelection.hueLowerFeather : 0,
+                colorSelection.isHueEnabled ? colorSelection.hueUpper : 1,
+                colorSelection.isHueEnabled ? colorSelection.hueUpperFeather : 0,
+                colorSelection.isLuminosityEnabled ? colorSelection.luminosityLower : 0,
+                colorSelection.isLuminosityEnabled ? colorSelection.luminosityLowerFeather : 0,
+                colorSelection.isLuminosityEnabled ? colorSelection.luminosityUpper : 1,
+                colorSelection.isLuminosityEnabled ? colorSelection.luminosityUpperFeather : 0
         };
 
         float wr = ColorScience.Wr;
@@ -133,17 +135,17 @@ public class ColorSelectionMaskOpImage extends PointOpImage {
         return hue;
     }
 
-    private native void nativeUshortLoop(short srcData[], byte dstData[],
+    private native void nativeUshortLoop(short[] srcData, byte[] dstData,
                                          int width, int height,
-                                         int srcBandOffsets[], int dstOffset,
+                                         int[] srcBandOffsets, int dstOffset,
                                          int srcLineStride, int dstLineStride,
-                                         float colorSelection[], float wr, float wg, float wb);
+                                         float[] colorSelection, float wr, float wg, float wb);
 
-    private void ushortLoop(short srcData[], byte dstData[],
+    private void ushortLoop(short[] srcData, byte[] dstData,
                             int width, int height,
-                            int srcBandOffsets[], int dstOffset,
+                            int[] srcBandOffsets, int dstOffset,
                             int srcLineStride, int dstLineStride,
-                            float colorSelection[], float wr, float wg, float wb) {
+                            float[] colorSelection, float wr, float wg, float wb) {
         int srcROffset = srcBandOffsets[0];
         int srcGOffset = srcBandOffsets[1];
         int srcBOffset = srcBandOffsets[2];
@@ -213,7 +215,7 @@ public class ColorSelectionMaskOpImage extends PointOpImage {
                 } else
                     colorMask = 0;
 
-                float luminosity = (float) (Math.log((wr * r + wg * g + wb * b)/0x100) / (8 * Math.log(2)));
+                float luminosity = (float) (Math.log1p((wr * r + wg * g + wb * b)/0x100) / (8 * Math.log(2)));
 
                 if (luminosity >= luminosityLower && luminosity <= luminosityUpper)
                     brightnessMask = 1;

@@ -2,30 +2,33 @@
 
 package com.lightcrafts.model.ImageEditor;
 
+import com.lightcrafts.image.color.ColorScience;
+import com.lightcrafts.jai.JAIContext;
+import com.lightcrafts.jai.utils.Functions;
+import com.lightcrafts.jai.utils.Transform;
 import com.lightcrafts.model.OperationType;
 import com.lightcrafts.model.SliderConfig;
-import com.lightcrafts.jai.utils.Transform;
-import com.lightcrafts.jai.utils.Functions;
-import com.lightcrafts.jai.JAIContext;
 
-import com.lightcrafts.mediax.jai.JAI;
-import com.lightcrafts.mediax.jai.PlanarImage;
-import com.lightcrafts.utils.ColorScience;
-
-import java.awt.image.renderable.ParameterBlock;
+import javax.media.jai.JAI;
+import javax.media.jai.PlanarImage;
 import java.awt.*;
-import java.util.Map;
-import java.util.Collections;
+import java.awt.image.renderable.ParameterBlock;
 import java.text.DecimalFormat;
+import java.util.Collections;
+import java.util.Map;
+
+import static com.lightcrafts.ui.help.HelpConstants.HELP_TOOL_BLACK_AND_WHITE;
 
 public class ChannelMixerV2 extends BlendedOperation implements com.lightcrafts.model.ColorPickerOperation {
-    static final String Strenght = "Strength";
+    private static final String Strenght = "Strength";
 
     private Color color = Color.white;
 
     public ChannelMixerV2(Rendering rendering, OperationType type) {
         super(rendering, type);
         colorInputOnly = true;
+
+        setHelpTopic(HELP_TOOL_BLACK_AND_WHITE);
 
         if (type != typeV2)
             addSliderKey(Strenght);
@@ -38,10 +41,11 @@ public class ChannelMixerV2 extends BlendedOperation implements com.lightcrafts.
 
     private double strenght = 1;
 
+    @Override
     public void setSliderValue(String key, double value) {
         value = roundValue(key, value);
 
-        if (key == Strenght && strenght != value) {
+        if (key.equals(Strenght) && strenght != value) {
             strenght = value;
         } else
             return;
@@ -49,6 +53,7 @@ public class ChannelMixerV2 extends BlendedOperation implements com.lightcrafts.
         super.setSliderValue(key, value);
     }
 
+    @Override
     public boolean neutralDefault() {
         return false;
     }
@@ -57,12 +62,14 @@ public class ChannelMixerV2 extends BlendedOperation implements com.lightcrafts.
     static final OperationType typeV3 = new OperationTypeImpl("Channel Mixer V3");
     static final OperationType typeV4 = new OperationTypeImpl("Channel Mixer V4");
 
+    @Override
     public Map<String, Double> setColor(Color color) {
         this.color = color;
         settingsChanged();
         return Collections.emptyMap();
     }
 
+    @Override
     public Color getColor() {
         return color;
     }
@@ -72,6 +79,7 @@ public class ChannelMixerV2 extends BlendedOperation implements com.lightcrafts.
             super(source);
         }
 
+        @Override
         public PlanarImage setFront() {
             if (type == typeV4)
                 return setFrontV4();
@@ -84,8 +92,8 @@ public class ChannelMixerV2 extends BlendedOperation implements com.lightcrafts.
 //            return new FilteredGrayscaleOpImage(back, filter, (float) (Math.PI), (float) strenght, null);
 //        }
 
-        public PlanarImage setFrontV4() {
-            float filter[] = {color.getRed() / 255f, color.getGreen() / 255f, color.getBlue() / 255f};
+        PlanarImage setFrontV4() {
+            float[] filter = {color.getRed() / 255f, color.getGreen() / 255f, color.getBlue() / 255f};
             filter = JAIContext.linearColorSpace.fromRGB(filter);
 
             float red = 1 - filter[0];
@@ -121,8 +129,8 @@ public class ChannelMixerV2 extends BlendedOperation implements com.lightcrafts.
             pb.add(transform);
             return JAI.create("BandCombine", pb, null);
         }
-        
-        public PlanarImage setFrontV3() {
+
+        PlanarImage setFrontV3() {
             float red = color.getRed() / 255f;
             float green = color.getGreen() / 255f;
             float blue = color.getBlue() / 255f;
@@ -157,14 +165,17 @@ public class ChannelMixerV2 extends BlendedOperation implements com.lightcrafts.
         }
     }
 
+    @Override
     protected void updateOp(Transform op) {
         op.update();
     }
 
+    @Override
     protected BlendedTransform createBlendedOp(PlanarImage source) {
         return new ChannelMixerTransform(source);
     }
 
+    @Override
     public OperationType getType() {
         return type;
     }

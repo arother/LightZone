@@ -2,42 +2,39 @@
 
 package com.lightcrafts.model.ImageEditor;
 
-import com.lightcrafts.model.SliderConfig;
-import com.lightcrafts.model.OperationType;
-import com.lightcrafts.model.ColorDropperOperation;
-import com.lightcrafts.model.RawAdjustmentOperation;
-import com.lightcrafts.jai.utils.Transform;
-import com.lightcrafts.jai.utils.Functions;
-import com.lightcrafts.jai.JAIContext;
-import com.lightcrafts.jai.opimage.HighlightRecoveryOpImage;
-import com.lightcrafts.jai.opimage.FastBilateralFilterOpImage;
-
-import com.lightcrafts.mediax.jai.PlanarImage;
-import com.lightcrafts.mediax.jai.JAI;
-import com.lightcrafts.mediax.jai.BorderExtender;
-import com.lightcrafts.mediax.jai.RenderedOp;
-import com.lightcrafts.mediax.jai.operator.MedianFilterDescriptor;
-import com.lightcrafts.utils.ColorScience;
-import com.lightcrafts.utils.DCRaw;
+import com.lightcrafts.image.color.ColorScience;
 import com.lightcrafts.image.types.AuxiliaryImageInfo;
 import com.lightcrafts.image.types.RawImageInfo;
+import com.lightcrafts.jai.JAIContext;
+import com.lightcrafts.jai.opimage.BilateralFilterRGBOpImage;
+import com.lightcrafts.jai.opimage.HighlightRecoveryOpImage;
+import com.lightcrafts.jai.utils.Transform;
+import com.lightcrafts.model.ColorDropperOperation;
+import com.lightcrafts.model.OperationType;
+import com.lightcrafts.model.RawAdjustmentOperation;
+import com.lightcrafts.model.SliderConfig;
+import com.lightcrafts.utils.DCRaw;
+import com.lightcrafts.utils.LCMatrix;
+import lombok.val;
+import org.ejml.simple.SimpleMatrix;
 
-import java.text.DecimalFormat;
+import javax.media.jai.BorderExtender;
+import javax.media.jai.PlanarImage;
 import java.awt.geom.Point2D;
-import java.awt.*;
-import java.awt.image.renderable.ParameterBlock;
 import java.awt.image.Raster;
-import java.util.*;
+import java.text.DecimalFormat;
+import java.util.Arrays;
+import java.util.Map;
+import java.util.TreeMap;
 
-import Jama.Matrix;
-import com.lightcrafts.image.metadata.ImageMetadata;
-import java.lang.String;
+import static com.lightcrafts.ui.help.HelpConstants.HELP_TOOL_RAW_ADJUSTMENTS;
 
 public class RawAdjustmentsOperation extends BlendedOperation implements ColorDropperOperation, RawAdjustmentOperation {
     private static final String SOURCE = "Temperature";
     private static final String TINT = "Tint";
     private static final String EXPOSURE = "Exposure";
     private static final String COLOR_NOISE = "Color_Noise";
+    private static final String GRAIN_NOISE = "Grain_Noise";
 
     private final float originalTemperature;
     private final float daylightTemperature;
@@ -46,13 +43,13 @@ public class RawAdjustmentsOperation extends BlendedOperation implements ColorDr
     private float tint = 0;
     private float exposure = 0;
     private float color_noise = 4;
+    private float grain_noise = 0;
 
     private Point2D p = null;
     private boolean autoWB = false;
     private float[][] cameraRGBWB, cameraRGBCA;
 
-    private float[] daylightMultipliers, preMul;
-    private float[] cameraMultipliers;
+    private float[] preMul;
 
     private float mixer(float t) {
         double p = (t - originalTemperature)/2000;
@@ -63,7 +60,7 @@ public class RawAdjustmentsOperation extends BlendedOperation implements ColorDr
         if (cameraRGBWB == null)
             return cameraRGBCA;
 
-        float matrix[][] = new float[3][3];
+        float[][] matrix = new float[3][3];
         float m = mixer(t);
 
         for (int i = 0; i < 3; i++)
@@ -75,40 +72,34 @@ public class RawAdjustmentsOperation extends BlendedOperation implements ColorDr
 
     private static final ColorScience.CAMethod caMethod = ColorScience.CAMethod.Mixed;
 
-    static final OperationType type = new OperationTypeImpl("RAW Adjustments");
+    static final OperationType typeV1 = new OperationTypeImpl("RAW Adjustments");
+    static final OperationType typeV2 = new OperationTypeImpl("RAW Adjustments V2");
 
-    static final Matrix RGBtoZYX = new Matrix(ColorScience.RGBtoZYX()).transpose();
-    static final Matrix XYZtoRGB = RGBtoZYX.inverse();    
+    private static final SimpleMatrix RGBtoZYX = new LCMatrix(ColorScience.RGBtoZYX()).transpose();
+    private static final SimpleMatrix XYZtoRGB = RGBtoZYX.invert();
 
-    static final String fakeISO100Cameras[] = new String[] {
-        "OLYMPUS IMAGING CORP. E-P1",
-        "OLYMPUS IMAGING CORP. E-PL1",
-        "OLYMPUS IMAGING CORP. E-P2",
-        "NIKON D3S"
-    };
-
-    AuxiliaryImageInfo auxInfo;
-    ImageMetadata metadata;
-
-    public RawAdjustmentsOperation(Rendering rendering) {
+    public RawAdjustmentsOperation(Rendering rendering, OperationType type) {
         super(rendering, type);
-
         colorInputOnly = true;
 
-        auxInfo = rendering.getEngine().getAuxInfo();
-        metadata = rendering.getEngine().getMetadata();
+        setHelpTopic(HELP_TOOL_RAW_ADJUSTMENTS);
+
+        AuxiliaryImageInfo auxInfo = rendering.getEngine().getAuxInfo();
 
         if (auxInfo instanceof RawImageInfo) {
             final DCRaw dcRaw = ((RawImageInfo)auxInfo).getDCRaw();
 
-            daylightMultipliers = dcRaw.getDaylightMultipliers(); // pre_mul
+            float[] daylightMultipliers = dcRaw.getDaylightMultipliers();
             preMul = daylightMultipliers.clone();
-            cameraMultipliers = dcRaw.getCameraMultipliers();
+            float[] cameraMultipliers = dcRaw.getCameraMultipliers();
 
             if (daylightMultipliers[0] != 0) {
                 daylightTemperature = neutralTemperature(daylightMultipliers, 5000);
 
-                System.out.println("daylightMultipliers: " + daylightMultipliers[0] + ", " + daylightMultipliers[1] + ", " + daylightMultipliers[2]);
+                System.out.println("daylightMultipliers: "
+                        + daylightMultipliers[0] + ", "
+                        + daylightMultipliers[1] + ", "
+                        + daylightMultipliers[2]);
 
                 System.out.println("Daylight Temperature : " + daylightTemperature);
             } else
@@ -117,7 +108,10 @@ public class RawAdjustmentsOperation extends BlendedOperation implements ColorDr
             if (cameraMultipliers[0] != 0) {
                 originalTemperature = temperature = neutralTemperature(cameraMultipliers, 5000);
 
-                System.out.println("cameraMultipliers: " + cameraMultipliers[0] + ", " + cameraMultipliers[1] + ", " + cameraMultipliers[2]);
+                System.out.println("cameraMultipliers: "
+                        + cameraMultipliers[0] + ", "
+                        + cameraMultipliers[1] + ", "
+                        + cameraMultipliers[2]);
 
                 System.out.println("Camera Temperature: " + originalTemperature);
             } else
@@ -148,12 +142,14 @@ public class RawAdjustmentsOperation extends BlendedOperation implements ColorDr
                     for (int j = 0; j < 3; j++)
                         cameraRGBWB[j][i] *= wb[i];
 
-                Matrix B = new Matrix(ColorScience.chromaticAdaptation(daylightTemperature, originalTemperature, caMethod));
-                Matrix combo = XYZtoRGB.times(B.times(RGBtoZYX));
+                val B = new LCMatrix(ColorScience.chromaticAdaptation(daylightTemperature, originalTemperature, caMethod));
+                val combo = XYZtoRGB.mult(B.mult(RGBtoZYX));
 
-                cameraRGBWB = combo.inverse().times(new Matrix(cameraRGBWB)).getArrayFloat();
+                cameraRGBWB = LCMatrix.getArrayFloat(
+                        combo.invert().mult(new LCMatrix(cameraRGBWB))
+                );
             }
-            
+
             cameraRGBCA = dcRaw.getCameraRGB();
             dcRaw.getDaylightMultipliers();
 
@@ -167,6 +163,8 @@ public class RawAdjustmentsOperation extends BlendedOperation implements ColorDr
 
         addSliderKey(EXPOSURE);
         addSliderKey(COLOR_NOISE);
+        if (type == typeV2)
+            addSliderKey(GRAIN_NOISE);
         addSliderKey(SOURCE);
         addSliderKey(TINT);
 
@@ -176,24 +174,23 @@ public class RawAdjustmentsOperation extends BlendedOperation implements ColorDr
         setSliderConfig(SOURCE, new SliderConfig(1000, 40000, temperature, 10, true, new DecimalFormat("0")));
         setSliderConfig(TINT, new SliderConfig(-20, 20, tint, 0.1, false, new DecimalFormat("0.0")));
         setSliderConfig(COLOR_NOISE, new SliderConfig(0, 20, color_noise, .01, false, format));
+        if (type == typeV2)
+            setSliderConfig(GRAIN_NOISE, new SliderConfig(0, 20, grain_noise, .01, false, format));
     }
 
-    static float neutralTemperature(float rgb[], float refT) {
+    static float neutralTemperature(float[] rgb, float refT) {
         float sat = Float.MAX_VALUE;
         float minT = 0;
         for (int t = 1000; t < 40000; t+= (0.01 * t)) {
-            Matrix B = new Matrix(ColorScience.chromaticAdaptation(t, refT, caMethod));
-            Matrix combo = XYZtoRGB.times(B.times(RGBtoZYX));
+            val B = new LCMatrix(ColorScience.chromaticAdaptation(t, refT, caMethod));
+            val combo = XYZtoRGB.mult(B.mult(RGBtoZYX));
+            val color = combo.mult(new LCMatrix(3, 1, rgb));
 
-            Matrix color = new Matrix(new double[][]{{rgb[0]}, {rgb[1]}, {rgb[2]}});
+            val r = color.get(0, 0);
+            val g = color.get(1, 0);
+            val b = color.get(2, 0);
 
-            color = combo.times(color);
-
-            double r = color.get(0, 0);
-            double g = color.get(1, 0);
-            double b = color.get(2, 0);
-
-            float tSat = (float) ColorScience.saturation(r, g, b);
+            val tSat = (float) ColorScience.saturation(r, g, b);
 
             if (tSat < sat) {
                 sat = tSat;
@@ -203,31 +200,37 @@ public class RawAdjustmentsOperation extends BlendedOperation implements ColorDr
         return minT;
     }
 
+    @Override
     public boolean isSingleton() {
         return true;
     }
 
+    @Override
     public boolean neutralDefault() {
         return false;
     }
 
+    @Override
     public void setSliderValue(String key, double value) {
         value = roundValue(key, value);
 
-        if (key == SOURCE && temperature != value) {
+        if (key.equals(SOURCE) && temperature != value) {
             temperature = (float) value;
-        } else if (key == TINT && tint != value) {
+        } else if (key.equals(TINT) && tint != value) {
             tint = (float) value;
-        } else if (key == EXPOSURE && exposure != value) {
+        } else if (key.equals(EXPOSURE) && exposure != value) {
             exposure = (float) value;
-        } else if (key == COLOR_NOISE && color_noise != value) {
+        } else if (key.equals(COLOR_NOISE) && color_noise != value) {
             color_noise = (float) value;
+        } else if (key.equals(GRAIN_NOISE) && grain_noise != value) {
+            grain_noise = (float) value;
         } else
             return;
-        
+
         super.setSliderValue(key, value);
     }
 
+    @Override
     public Map<String, Float> setColor(Point2D p) {
         this.p = p;
         settingsChanged();
@@ -239,6 +242,7 @@ public class RawAdjustmentsOperation extends BlendedOperation implements ColorDr
         return result;
     }
 
+    @Override
     public Map<String, Double> getAuto() {
         autoWB = true;
         settingsChanged();
@@ -250,6 +254,7 @@ public class RawAdjustmentsOperation extends BlendedOperation implements ColorDr
         return result;
     }
 
+    @Override
     public Map<String, Double> getAsShot() {
         Map<String, Double> result = new TreeMap<String, Double>();
         result.put(SOURCE, (double) originalTemperature);
@@ -265,13 +270,13 @@ public class RawAdjustmentsOperation extends BlendedOperation implements ColorDr
     private float[] autoWhiteBalance(PlanarImage image) {
         int iheight = image.getHeight();
         int iwidth = image.getWidth();
-        double dsum[] = new double[6];
-        int sum[] = new int[6];
+        double[] dsum = new double[6];
+        int[] sum = new int[6];
         int maximum = 0xffff;
         int black = 0;
 
-        int pixel[] = new int[3];
-        int caPixel[] = new int[3];
+        int[] pixel = new int[3];
+        int[] caPixel = new int[3];
 
         for (int row = 0; row < iheight - 7; row += 8) {
             skip_block:
@@ -285,7 +290,7 @@ public class RawAdjustmentsOperation extends BlendedOperation implements ColorDr
                         for (int i = 0; i < 3; i++)
                             for (int j = 0; j < 3; j++)
                                 caPixel[j] += (int) (pixel[i] * cameraRGBCA[j][i]);
-                        
+
                         for (int c = 0; c < 3; c++) {
                             int val = caPixel[c];
                             if (val == 0)
@@ -304,7 +309,7 @@ public class RawAdjustmentsOperation extends BlendedOperation implements ColorDr
             }
         }
 
-        float pre_mul[] = new float[3];
+        float[] pre_mul = new float[3];
         for (int c = 0; c < 3; c++)
             if (dsum[c] != 0)
                 pre_mul[c] = (float) (dsum[c + 3] / dsum[c]);
@@ -322,6 +327,7 @@ public class RawAdjustmentsOperation extends BlendedOperation implements ColorDr
             super(source);
         }
 
+        @Override
         public PlanarImage setFront() {
             PlanarImage front = back;
 
@@ -330,7 +336,7 @@ public class RawAdjustmentsOperation extends BlendedOperation implements ColorDr
             float lightness = 0.18f;
 
             if (autoWB) {
-                float wb[] = autoWhiteBalance(back);
+                float[] wb = autoWhiteBalance(back);
                 System.out.println("Auto WB: " + wb[0] + ", " + wb[1] + ", " + wb[2]);
 
                 temperature = neutralTemperature(wb, daylightTemperature);
@@ -338,20 +344,20 @@ public class RawAdjustmentsOperation extends BlendedOperation implements ColorDr
 
                 System.out.println("Correlated Temperature: " + temperature);
             } else if (p != null) {
-                int pixel[] = pointToPixel(p);
+                int[] pixel = pointToPixel(p);
 
                 if (pixel != null) {
                     float oldTemperature = 0;
 
                     for (int k = 0; k < 10 && Math.abs(oldTemperature - temperature) > 0.01 * temperature; k++) {
                         oldTemperature = temperature;
-                        
-                        int newPixel[] = new int[3];
+
+                        int[] newPixel = new int[3];
                         for (int i = 0; i < 3; i++)
                             for (int j = 0; j < 3; j++)
                                 newPixel[j] += (int) (pixel[i] * cameraRGB(temperature)[j][i]);
 
-                        float n[] = WhiteBalanceV2.neutralize(newPixel, caMethod, temperature, daylightTemperature);
+                        float[] n = WhiteBalanceV2.neutralize(newPixel, caMethod, temperature, daylightTemperature);
 
                         lightness = newPixel[1]/255.0f;
 
@@ -362,60 +368,32 @@ public class RawAdjustmentsOperation extends BlendedOperation implements ColorDr
             }
 
             // Chromatic adaptation matrix
-            Matrix B = new Matrix(ColorScience.chromaticAdaptation(daylightTemperature, temperature, caMethod));
-            Matrix CA = XYZtoRGB.times(B.times(RGBtoZYX));
+            val B = new LCMatrix(ColorScience.chromaticAdaptation(daylightTemperature, temperature, caMethod));
+            SimpleMatrix CA = XYZtoRGB.mult(B.mult(RGBtoZYX));
 
             // Normalize the CA matrix to keep exposure constant
-            Matrix m = CA.times(new Matrix(new double[][]{{1},{1},{1}}));
-            double max = m.get(1, 0);
+            val m = CA.mult(new LCMatrix(new float[][]{{1},{1},{1}}));
+            val max = (float) m.get(1, 0);
             if (max != 1)
-                CA = CA.times(new Matrix(new double[][]{{1/max, 0, 0},{0, 1/max, 0},{0, 0, 1/max}}));
-
-            float actualExposure = exposure;
-            String thisCamera = metadata.getCameraMake(true);
-            for (String camera : fakeISO100Cameras)
-                if (thisCamera.equals(camera)) {
-                    if (metadata.getISO() == 100) {
-                        actualExposure -= 1;
-                    }
-                    break;
-                }
+                CA = CA.mult(new LCMatrix(new float[][]{{1/max, 0, 0},{0, 1/max, 0},{0, 0, 1/max}}));
 
             // The matrix taking into account the camera color space and its basic white balance and exposure
-            float camMatrix[][] = new Matrix(cameraRGB(temperature)).times(Math.pow(2, actualExposure)).getArrayFloat();
+            val camMatrix = LCMatrix.getArrayFloat(
+                    CA.mult(new LCMatrix(cameraRGB(temperature)).scale(Math.pow(2, exposure)))
+            );
 
-            front = new HighlightRecoveryOpImage(front, preMul, camMatrix, CA.getArrayFloat(), null);
+            front = new HighlightRecoveryOpImage(front, preMul, camMatrix, JAIContext.fileCacheHint);
+            front.setProperty(JAIContext.PERSISTENT_CACHE_TAG, Boolean.TRUE);
 
             if (tint != 0)
                 front = WhiteBalanceV2.tintCast(front, tint, lightness);
 
             front.setProperty(JAIContext.PERSISTENT_CACHE_TAG, Boolean.TRUE);
 
-            /*** NOISE REDUCTION ***/
-
-            RenderingHints mfHints = new RenderingHints(JAI.KEY_BORDER_EXTENDER, BorderExtender.createInstance(BorderExtender.BORDER_COPY));
-
-            if (color_noise != 0) {
-                ColorScience.LinearTransform transform = new ColorScience.YST();
-
-                double[][] rgb2llab = transform.fromRGB(back.getSampleModel().getDataType());
-                double[][] llab2rgb = transform.toRGB(back.getSampleModel().getDataType());
-
-                ParameterBlock pb = new ParameterBlock();
-                pb.addSource( front );
-                pb.add( rgb2llab );
-                PlanarImage ystImage = JAI.create("BandCombine", pb, null);
-
-                pb = new ParameterBlock();
-                pb.addSource(ystImage);
-                pb.add(color_noise * scale);
-                pb.add(0.02f + 0.001f * color_noise);
-                ystImage = JAI.create("BilateralFilter", pb, mfHints);
-
-                pb = new ParameterBlock();
-                pb.addSource( ystImage );
-                pb.add( llab2rgb );
-                front = JAI.create("BandCombine", pb, null);
+            // NOISE REDUCTION
+            if (color_noise != 0 || grain_noise != 0) {
+                BorderExtender borderExtender = BorderExtender.createInstance(BorderExtender.BORDER_COPY);
+                front = new BilateralFilterRGBOpImage(front, borderExtender, JAIContext.fileCacheHint, null, grain_noise * scale, 0.02f, color_noise * scale, 0.04f);
                 front.setProperty(JAIContext.PERSISTENT_CACHE_TAG, Boolean.TRUE);
             }
 
@@ -423,14 +401,17 @@ public class RawAdjustmentsOperation extends BlendedOperation implements ColorDr
         }
     }
 
+    @Override
     protected void updateOp(Transform op) {
         op.update();
     }
 
+    @Override
     protected BlendedTransform createBlendedOp(PlanarImage source) {
         return new RawAdjustments(source);
     }
 
+    @Override
     public OperationType getType() {
         return type;
     }

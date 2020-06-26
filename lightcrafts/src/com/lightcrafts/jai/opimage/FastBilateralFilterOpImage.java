@@ -1,4 +1,5 @@
 /* Copyright (C) 2005-2011 Fabio Riccardi */
+/* Copyright (C) 2016 Masahiro Kitagawa */
 
 package com.lightcrafts.jai.opimage;
 
@@ -6,34 +7,69 @@ import java.awt.*;
 import java.awt.color.ColorSpace;
 import java.awt.image.*;
 
-import com.lightcrafts.mediax.jai.AreaOpImage;
-import com.lightcrafts.mediax.jai.BorderExtender;
-import com.lightcrafts.mediax.jai.ImageLayout;
-import com.lightcrafts.mediax.jai.RasterAccessor;
-import com.lightcrafts.mediax.jai.RasterFormatTag;
-import com.sun.imageio.plugins.common.BogusColorSpace;
+import javax.media.jai.AreaOpImage;
+import javax.media.jai.BorderExtender;
+import javax.media.jai.ImageLayout;
+import javax.media.jai.RasterAccessor;
+import javax.media.jai.RasterFormatTag;
 
 import java.util.Map;
 
 public final class FastBilateralFilterOpImage extends AreaOpImage {
-    final float sigma_d;
-    final float sigma_r;
+    private final float sigma_d;
+    private final float sigma_r;
 
-    static final BorderExtender copyExtender = BorderExtender.createInstance(BorderExtender.BORDER_COPY);
+    private static final BorderExtender copyExtender = BorderExtender.createInstance(BorderExtender.BORDER_COPY);
 
-    static final float transform[] = new float[0x10000];
+    private static final float[] transform = new float[0x10000];
 
     static {
         for (int i = 0; i < 0x10000; i++) {
             float x = i / (float) 0x10000;
             transform[i] = (float) (Math.log1p(x)/Math.log(2) + 1.5 * Math.exp(-10*x) * Math.pow(x, 0.7));
-        }        
+        }
     }
 
     private static ImageLayout fblLayout(RenderedImage source) {
+
+        class TwoComponentsColorSpace extends ColorSpace {
+
+            private TwoComponentsColorSpace() {
+                super(ColorSpace.TYPE_2CLR, 2);
+            }
+
+            @Override
+            public float[] toRGB(float[] colorvalue) {
+                if(colorvalue.length < 2)
+                    throw new ArrayIndexOutOfBoundsException("colorvalue.length < 2");
+                return colorvalue;
+            }
+
+            @Override
+            public float[] fromRGB(float[] rgbvalue) {
+                if(rgbvalue.length < 2)
+                    throw new ArrayIndexOutOfBoundsException("rgbvalue.length < 3");
+                return new float[] {rgbvalue[0], rgbvalue[1]};
+            }
+
+            @Override
+            public float[] toCIEXYZ(float[] colorvalue) {
+                if(colorvalue.length < 2)
+                    throw new ArrayIndexOutOfBoundsException("colorvalue.length < 2");
+                return colorvalue;
+            }
+
+            @Override
+            public float[] fromCIEXYZ(float[] xyzvalue) {
+                if(xyzvalue.length < 2)
+                    throw new ArrayIndexOutOfBoundsException("xyzvalue.length < 3");
+                return new float[] {xyzvalue[0], xyzvalue[1]};
+            }
+        }
+
         // SampleModel sm = new ComponentSampleModel(DataBuffer.TYPE_USHORT, source.getWidth(), source.getHeight(), 2, 2*source.getWidth(), new int[]{0, 2});
 
-        ColorModel cm = new ComponentColorModel(new BogusColorSpace(2),
+        ColorModel cm = new ComponentColorModel(new TwoComponentsColorSpace(),
                                                 false, false, Transparency.OPAQUE, DataBuffer.TYPE_USHORT);
         SampleModel sm = cm.createCompatibleSampleModel(source.getWidth(), source.getHeight());
 
@@ -70,7 +106,7 @@ public final class FastBilateralFilterOpImage extends AreaOpImage {
 
         RasterAccessor srcAccessor =
                 new RasterAccessor(source, srcRect, formatTags[0],
-                                   getSource(0).getColorModel());
+                                   getSourceImage(0).getColorModel());
         RasterAccessor dstAccessor =
                 new RasterAccessor(dest, destRect, formatTags[1],
                                    this.getColorModel());
@@ -95,16 +131,16 @@ public final class FastBilateralFilterOpImage extends AreaOpImage {
         int swidth = src.getWidth();
         int sheight = src.getHeight();
 
-        short dstDataArrays[][] = dst.getShortDataArrays();
-        int dstBandOffsets[] = dst.getBandOffsets();
+        short[][] dstDataArrays = dst.getShortDataArrays();
+        int[] dstBandOffsets = dst.getBandOffsets();
         int dstScanlineStride = dst.getScanlineStride();
 
-        short srcDataArrays[][] = src.getShortDataArrays();
-        int srcBandOffsets[] = src.getBandOffsets();
+        short[][] srcDataArrays = src.getShortDataArrays();
+        int[] srcBandOffsets = src.getBandOffsets();
         int srcScanlineStride = src.getScanlineStride();
 
-        short dstData[] = dstDataArrays[0];
-        short srcData[] = srcDataArrays[0];
+        short[] dstData = dstDataArrays[0];
+        short[] srcData = srcDataArrays[0];
 
         if (src.getNumBands() == 1)
             fastBilateralFilterMono(srcData, dstData,
@@ -131,27 +167,27 @@ public final class FastBilateralFilterOpImage extends AreaOpImage {
                                      srcScanlineStride, dstScanlineStride);
     }
 
-    static native void fastBilateralFilterMono(short srcData[], short destData[],
+    static native void fastBilateralFilterMono(short[] srcData, short[] destData,
                                                float sigma_s, float sigma_r,
                                                int width, int height,
                                                int srcPixelStride, int destPixelStride,
                                                int srcOffset, int destOffset,
                                                int srcLineStride, int destLineStride,
-                                               float transform[]);
+                                               float[] transform);
 
-    static native void fastBilateralFilterChroma(short srcData[], short destData[],
-                                               float sigma_s, float sigma_r,
-                                               int width, int height,
-                                               int srcPixelStride, int destPixelStride,
-                                               int srcROffset, int srcGOffset, int srcBOffset,
-                                               int destROffset, int destGOffset, int destBOffset,
-                                               int srcLineStride, int destLineStride);
+    static native void fastBilateralFilterChroma(short[] srcData, short[] destData,
+                                                 float sigma_s, float sigma_r,
+                                                 int width, int height,
+                                                 int srcPixelStride, int destPixelStride,
+                                                 int srcROffset, int srcGOffset, int srcBOffset,
+                                                 int destROffset, int destGOffset, int destBOffset,
+                                                 int srcLineStride, int destLineStride);
 
-    static native void fastBilateralFilterColor(short srcData[], short destData[],
-                                               float sigma_s, float sigma_r,
-                                               int width, int height,
-                                               int srcPixelStride, int destPixelStride,
-                                               int srcROffset, int srcGOffset, int srcBOffset,
-                                               int destROffset, int destGOffset, int destBOffset,
-                                               int srcLineStride, int destLineStride);
+    static native void fastBilateralFilterColor(short[] srcData, short[] destData,
+                                                float sigma_s, float sigma_r,
+                                                int width, int height,
+                                                int srcPixelStride, int destPixelStride,
+                                                int srcROffset, int srcGOffset, int srcBOffset,
+                                                int destROffset, int destGOffset, int destBOffset,
+                                                int srcLineStride, int destLineStride);
 }

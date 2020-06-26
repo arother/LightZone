@@ -2,13 +2,11 @@
 
 package com.lightcrafts.platform.macosx;
 
+import java.io.File;
+import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
-import java.io.File;
-import java.io.FileNotFoundException;
-
-import com.apple.eio.FileManager;
 
 /**
  * Mac OS X file utilities.
@@ -31,9 +29,11 @@ public final class MacOSXFileUtil {
             // This works only when the application is started from a bundle
             // and not from either the command-line or an IDE.
             //
-            return FileManager.getResource( nibFilename );
+            Class fileManager = Class.forName( "com.apple.eio.FileManager" );
+            Method getResource = fileManager.getDeclaredMethod( "getResource", new Class[] {String.class} );
+            return getResource.invoke( null, nibFilename ).toString();
         }
-        catch ( FileNotFoundException e ) {
+        catch ( Exception e ) {
             //
             // Failing the above, assume that the working directory is the root
             // of the source tree and use a path relative to that.
@@ -99,16 +99,6 @@ public final class MacOSXFileUtil {
      * refer to an alias) or <code>null</code> if there was an error.
      */
     public static native String resolveAlias( String path );
-
-    /**
-     * Tell the Finder to show the folder the given file is in and to select
-     * the file.
-     *
-     * @param path The full path of the file to show and select.
-     * @return Returns <code>true</code> only if the file was selected
-     * successfully.
-     */
-    public static native boolean showInFinder( String path );
 
     ////////// private ////////////////////////////////////////////////////////
 

@@ -1,0 +1,57 @@
+# Maintainer: KITAGAWA Masahiro <arctica0316@gmail.com>
+pkgname="lightzone"
+pkgver=4.2.0
+pkgrel=0
+pkgdesc="Open-source professional-level digital darkroom software"
+url="http://lightzoneproject.org/"
+license=('custom:BSD-3-Clause')
+arch=('x86_64')
+
+depends=('java-runtime=13' 'java-openjfx' 'javahelp2' 'lensfun' 'lcms2' 'libjpeg-turbo' 'libtiff' 'libxml2')
+makedepends=('java-environment=13' 'apache-ant' 'autoconf' 'gcc' 'make' 'git' 'libx11' 'pkgconf' 'rsync' 'javahelp2' 'lcms2' 'libjpeg-turbo' 'libtiff')
+
+#vcsname=${pkgname}-${pkgver}
+#source=("${vcsname}.tar.bz2")
+vcsname='LightZone'
+source=("git+https://github.com/ktgw0316/${vcsname}.git")
+md5sums=('SKIP')
+
+build() {
+  # Set $JAVA_HOME and $ANT_HOME
+  if [ -d /usr/lib/jvm/java-13-jdk ]; then
+    export JAVA_HOME=/usr/lib/jvm/java-13-jdk
+  elif [ -d /usr/lib/jvm/java-13-openjdk ]; then
+    export JAVA_HOME=/usr/lib/jvm/java-13-openjdk
+  else
+    export JAVA_HOME=/usr/lib/jvm/java-13-openjdk
+  fi
+
+  # Parallel compilation fails, so disable it
+  export MAKEFLAGS="-j1"
+
+  cd "${srcdir}/${vcsname}/"
+  ant -f linux/build.xml jar
+}
+
+package() {
+  cd "${srcdir}/${vcsname}/"
+
+  _libexecdir=/usr/lib
+  install -dm 0755 "${pkgdir}/${_libexecdir}/${pkgname}"
+  cp -pH linux/products/*.so "${pkgdir}/${_libexecdir}/${pkgname}"
+  _javadir=/usr/share/java
+  install -dm 0755 "${pkgdir}/${_javadir}/${pkgname}"
+  cp -pH lightcrafts/products/dcraw_lz "${pkgdir}/${_javadir}/${pkgname}"
+  cp -pH lightcrafts/products/LightZone-forkd "${pkgdir}/${_javadir}/${pkgname}"
+  cp -pH linux/products/*.jar "${pkgdir}/${_javadir}/${pkgname}"
+  
+# create icons and shortcuts
+  _datadir=/usr/share
+  install -dm 0755 "${pkgdir}/${_datadir}/applications"
+  install -m 644 linux/products/lightzone.desktop "${pkgdir}/${_datadir}/applications/"
+  cp -pHR linux/icons "${pkgdir}/${_datadir}/"
+
+  _bindir=/usr/bin
+  install -dm 0755 "${pkgdir}/${_bindir}"
+  install -m 755 "linux/products/${pkgname}" "${pkgdir}/${_bindir}"
+}

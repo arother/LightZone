@@ -29,7 +29,7 @@ import java.awt.color.ColorSpace;
 
 import contrib.com.jgoodies.looks.common.FontSet;
 import contrib.com.jgoodies.looks.common.FontPolicy;
-import com.lightcrafts.mediax.jai.IHSColorSpace;
+import javax.media.jai.IHSColorSpace;
 
 public class LightZoneSkin extends SubstanceAbstractSkin {
     public static String NAME = "LightZone";
@@ -79,7 +79,7 @@ public class LightZoneSkin extends SubstanceAbstractSkin {
     static Color relight(Color color, float amount) {
         IHSColorSpace ihs = IHSColorSpace.getInstance();
 
-        float components[] = new float[3];
+        float[] components = new float[3];
         components = ihs.fromRGB(color.getColorComponents(components));
         components[0] *= amount;
         components = ihs.toRGB(components);
@@ -173,12 +173,12 @@ public class LightZoneSkin extends SubstanceAbstractSkin {
         String fontFamily = Font.SANS_SERIF;
 
         public LightZoneFontSet() {
-            controlFont = new FontUIResource(fontFamily, Font.BOLD, 11);
-            menuFont = new FontUIResource(fontFamily, Font.PLAIN, 11);
-            titleFont = new FontUIResource(fontFamily, Font.BOLD, 9);
-            windowTitleFont = new FontUIResource(fontFamily, Font.BOLD, 14);
-            smallFont = new FontUIResource(fontFamily, Font.PLAIN, 11);
-            messageFont = new FontUIResource(fontFamily, Font.BOLD, 11);
+            controlFont = new FontUIResource(fontFamily, Font.PLAIN, 13);
+            menuFont = new FontUIResource(fontFamily, Font.PLAIN, 13);
+            titleFont = new FontUIResource(fontFamily, Font.BOLD, 11);
+            windowTitleFont = new FontUIResource(fontFamily, Font.BOLD, 16);
+            smallFont = new FontUIResource(fontFamily, Font.PLAIN, 13);
+            messageFont = new FontUIResource(fontFamily, Font.BOLD, 13);
         }
 
         public FontUIResource getControlFont() {

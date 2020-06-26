@@ -1,13 +1,16 @@
 HIGH_PERFORMANCE:=	1
 USE_ICC_HERE:=		1
 
-ROOT:=			../../..
-COMMON_DIR:=		$(ROOT)/lightcrafts
-include			$(COMMON_DIR)/mk/platform.mk
-
 TARGET_BASE:=		FASTJAI
 
-JNI_MACOSX_LINK:=	-lstdc++
+JNI_WINDOWS_CFLAGS:=	-fopenmp
+JNI_LINUX_CFLAGS:=	$(JNI_WINDOWS_CFLAGS)
+JNI_MACOSX_CFLAGS:=	-Xpreprocessor -fopenmp
+JNI_EXTRA_CFLAGS+=	-std=c++0x
+
+# Must not use := here!
+JNI_MACOSX_LINK=	-lstdc++ -lomp
+JNI_WINDOWS_LINK:=      -lgomp.dll
 # JNI_WINDOWS_LINK:=	-lLCJNI
 # JNI_LINUX_LINK:=	$(JNI_WINDOWS_LINK)
 
@@ -21,6 +24,8 @@ JAVAH_CLASSES:=		com.lightcrafts.jai.opimage.HighlightRecoveryOpImage \
 			com.lightcrafts.jai.opimage.PixelBlender \
 			com.lightcrafts.jai.opimage.ColorSelectionMaskOpImage \
 			com.lightcrafts.jai.opimage.RGBColorSelectionMaskOpImage \
+			com.lightcrafts.jai.opimage.BilateralFilterRGBOpImage \
+			com.lightcrafts.jai.opimage.NonLocalMeansFilterOpImage \
 			com.lightcrafts.jai.opimage.HDROpImage2
 
 ROOT:=			../../..

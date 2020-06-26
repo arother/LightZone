@@ -100,11 +100,15 @@ public final class CanonDirectory extends MakerNotesDirectory implements
      * {@inheritDoc}
      */
     public int getISO() {
-        boolean isAPEX = false;
-        ImageMetaValue value = getValue( CANON_CS_ISO );
+        ImageMetaValue value = getValue( CANON_SI_ISO );
+        boolean isAPEX = true;
         if ( value == null ) {
-            value = getValue( CANON_SI_ISO );
-            isAPEX = true;
+            //
+            // CANON_CS_ISO can be "Auto" that is not a number,
+            // therefore it shouldn't be a default choice. 
+            //
+            value = getValue( CANON_CS_ISO );
+            isAPEX = false;
         }
         if ( value == null )
             return 0;
@@ -245,6 +249,7 @@ public final class CanonDirectory extends MakerNotesDirectory implements
             case CANON_SHOT_INFO:
                 explodeSubfields( tagID, 1, value, false );
                 return;
+            case CANON_COLOR_DATA:
             case CANON_COLOR_INFO:
             case CANON_FILE_INFO:
             case CANON_PICTURE_INFO:
@@ -287,7 +292,10 @@ public final class CanonDirectory extends MakerNotesDirectory implements
             case CANON_LI_FOCAL_LENGTH:
             case CANON_LI_LONG_FOCAL_LENGTH:
             case CANON_LI_SHORT_FOCAL_LENGTH:
-                return value.getStringValue() + "mm"; // TODO: localize "mm"
+                return TextUtil.tenthsNoDotZero( value.getShortValue() )  + "mm"; // TODO: localize "mm"
+            case CANON_CS_MAX_APERTURE:
+            case CANON_CS_MIN_APERTURE:
+                return TextUtil.tenthsNoDotZero( value.getShortValue() );
             case CANON_PI_DIGITAL_GAIN:
                 return TextUtil.tenths( value.getIntValue() / 10F );
             case CANON_SI_EXPOSURE_TIME:
@@ -310,14 +318,50 @@ public final class CanonDirectory extends MakerNotesDirectory implements
     ////////// protected //////////////////////////////////////////////////////
 
     /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected ImageMetaValue getLensNamesValue() {
+        return getValue( CANON_CS_LENS_TYPE );
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected ImageMetaValue getFocalUnitsPerMMValue() {
+        return getValue( CANON_CS_FOCAL_UNITS_PER_MM );
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected ImageMetaValue getLongFocalValue() {
+        return getValue( CANON_CS_LONG_FOCAL_LENGTH );
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected ImageMetaValue getShortFocalValue() {
+        return getValue( CANON_CS_SHORT_FOCAL_LENGTH );
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected ImageMetaValue getMaxApertureValue() {
+        return getValue( CANON_CS_MAX_APERTURE );
+    }
+
+    /**
      * Gets the priority of this directory for providing the metadata supplied
      * by implementing the given provider interface.
      * <p>
-     * By default, the priority for maker notes directories is higher than
-     * {@link ImageMetadataDirectory#getProviderPriorityFor(Class)} because
-     * they have more detailed metadata about a given image.
-     * <p>
-     * However, an exception is made for {@link ShutterSpeedProvider} for Canon
+     * The priority for {@link ShutterSpeedProvider} for Canon is the lowest
      * because it yields weird values.
      *
      * @param provider The provider interface to get the priority for.
@@ -326,8 +370,9 @@ public final class CanonDirectory extends MakerNotesDirectory implements
     protected int getProviderPriorityFor(
         Class<? extends ImageMetadataProvider> provider )
     {
-        return provider == ShutterSpeedProvider.class ? 0 :
-            super.getProviderPriorityFor( provider );
+        return (provider == ShutterSpeedProvider.class)
+                ? PROVIDER_PRIORITY_MIN
+                : super.getProviderPriorityFor( provider );
     }
 
     /**
@@ -404,6 +449,7 @@ public final class CanonDirectory extends MakerNotesDirectory implements
 
     static {
         add( CANON_CAMERA_SETTINGS, "CameraSettings", META_UNDEFINED );
+        add( CANON_CD_VERSION, "CDVersion", META_SSHORT );
         add( CANON_CF_AF_ASSIST_LIGHT, "CFAssistLight", META_SSHORT );
         add( CANON_CF_AUTO_EXPOSURE_BRACKETING, "CFAutoExposureBracketing", META_SSHORT );
         add( CANON_CF_AUTO_EXPOSURE_LOCK_BUTTONS, "CFAutoExposureLockButtons", META_SSHORT );
@@ -442,8 +488,10 @@ public final class CanonDirectory extends MakerNotesDirectory implements
         add( CANON_CS_ISO, "CSISO", META_SSHORT );
         add( CANON_CS_LENS_TYPE, "CSLensType", META_SSHORT );
         add( CANON_CS_LONG_FOCAL_LENGTH, "CSLongFocalLength", META_SSHORT );
+        add( CANON_CS_MAX_APERTURE, "CSMaxAperture", META_SSHORT );
         add( CANON_CS_MACRO_MODE, "CSMacroMode", META_SSHORT );
         add( CANON_CS_METERING_MODE, "CSMeteringMode", META_SSHORT );
+        add( CANON_CS_MIN_APERTURE, "CSMinAperture", META_SSHORT );
         add( CANON_CS_QUALITY, "CSQuality", META_SSHORT );
         add( CANON_CS_SATURATION, "CSSaturation", META_SSHORT );
         add( CANON_CS_SELF_TIMER_DELAY, "CSSelfTimerDelay", META_SSHORT );
@@ -469,6 +517,7 @@ public final class CanonDirectory extends MakerNotesDirectory implements
         add( CANON_LI_LENS_TYPE, "LILensType", META_USHORT );
         add( CANON_LI_LONG_FOCAL_LENGTH, "LILongFocalLength", META_USHORT );
         add( CANON_LI_SHORT_FOCAL_LENGTH, "LIShortFocalLength", META_USHORT );
+        add( CANON_MODEL_ID, "ModelID", META_ULONG );
         add( CANON_OWNER_NAME, "OwnerName", META_STRING );
         add( CANON_PI_AF_POINTS_USED, "PIAFPointsUsed", META_USHORT );
         add( CANON_PI_COLOR_TEMPERATURE, "PIColorTemperature", META_SSHORT );
@@ -485,7 +534,9 @@ public final class CanonDirectory extends MakerNotesDirectory implements
         add( CANON_PI_WB_SHIFT_GM, "PIWBShiftGM", META_SSHORT );
         add( CANON_PI_WHITE_BALANCE_BLUE, "PIWhiteBalanceBlue", META_SSHORT );
         add( CANON_PI_WHITE_BALANCE_RED, "PIWhiteBalanceRed", META_SSHORT );
+        add( CANON_PI2_AF_AREA_MODE, "PI2AfAreaMode", META_USHORT );
         add( CANON_PICTURE_INFO, "PictureInfo", META_UNDEFINED );
+        add( CANON_PICTURE_INFO2, "PictureInfo2", META_UNDEFINED );
         add( CANON_PII_FOCAL_PLANE_X_RESOLUTION, "PIIFocalPlaneXResolution", META_SRATIONAL );
         add( CANON_PII_FOCAL_PLANE_Y_RESOLUTION, "PIIFocalPlaneYResolution", META_SRATIONAL );
         add( CANON_PII_IMAGE_HEIGHT, "PIIImageHeight", META_ULONG );

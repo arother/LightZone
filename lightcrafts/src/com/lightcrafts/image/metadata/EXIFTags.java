@@ -2,6 +2,9 @@
 
 package com.lightcrafts.image.metadata;
 
+import java.util.Arrays;
+import java.util.List;
+
 /**
  * An <code>EXIFTags</code> defines the constants used for EXIF metadata tags.
  *
@@ -228,7 +231,14 @@ public interface EXIFTags extends ImageMetaTags {
      * Indicates the image source. If a DSC recorded the image, this tag value
      * of this tag always be set to 3 indicating that the image was recorded on
      * a DSC.
-     * <p>
+     *  <blockquote>
+     *    <table border="0" cellpadding="0">
+     *      <tr><td>0 =&nbsp;</td><td>others</td></tr>
+     *      <tr><td>1 =&nbsp;</td><td>scanner of transparent type</td></tr>
+     *      <tr><td>2 =&nbsp;</td><td>scanner of reflex type</td></tr>
+     *      <tr><td>3 =&nbsp;</td><td>DSC</td></tr>
+     *    </table>
+     *  </blockquote>
      * Type: Undefined.
      */
     int EXIF_FILE_SOURCE                    = 0xA300;
@@ -313,6 +323,19 @@ public interface EXIFTags extends ImageMetaTags {
     int EXIF_GAIN_CONTROL                   = 0xA407;
 
     /**
+     * Indicates the value of coefficient gamma.  The formula of transfer
+     * function used for image reproduction is:
+     *  <blockquote>
+     *    (Reproduced value) = (Input value)<sup><small>gamma</small></sup>
+     *  </blockquote>
+     * Both reproduced value and input value indicate normalized value, whose
+     * minimum value is 0 and maximum value if 1.
+     * <p>
+     * Type: Rational.
+     */
+    int EXIF_GAMMA                          = 0xA500;
+
+    /**
      * @see TIFFTags#TIFF_GPS_IFD_POINTER
      */
     int EXIF_GPS_IFD_POINTER                = TIFFTags.TIFF_GPS_IFD_POINTER;
@@ -377,6 +400,24 @@ public interface EXIFTags extends ImageMetaTags {
      * @see TIFFTags#TIFF_LIGHT_SOURCE
      */
     int EXIF_LIGHT_SOURCE                   = TIFFTags.TIFF_LIGHT_SOURCE;
+
+    /**
+     * Lens focal length range and aperture range.
+     * Type: Unsigned rational.
+     */
+    int EXIF_LENS_INFO                      = 0xA432;
+
+    /**
+     * Lens make name.
+     * Type: ASCII.
+     */
+    int EXIF_LENS_MAKE                      = 0xA433;
+
+    /**
+     * Lens model name.
+     * Type: ASCII.
+     */
+    int EXIF_LENS_MODEL                     = 0xA434;
 
     /**
      * @see TIFFTags#TIFF_MAKE
@@ -807,5 +848,69 @@ public interface EXIFTags extends ImageMetaTags {
     int EXIF_CFA_PATTERN_2                  = 0x828E;
     int EXIF_EXPOSURE_INDEX_2               = 0x9215;
 
+    List<Integer> TIFFCommonTags = Arrays.asList(
+            EXIF_APERTURE_VALUE,
+            EXIF_ARTIST,
+            EXIF_BITS_PER_SAMPLE,
+            EXIF_BRIGHTNESS_VALUE,
+            EXIF_COMPRESSION,
+            EXIF_COPYRIGHT,
+            EXIF_DATE_TIME,
+            EXIF_DOCUMENT_NAME,
+            EXIF_EXPOSURE_BIAS_VALUE,
+            EXIF_EXPOSURE_PROGRAM,
+            EXIF_EXPOSURE_TIME,
+            EXIF_FLASH,
+            EXIF_FNUMBER,
+            EXIF_GPS_IFD_POINTER,
+            EXIF_HOST_COMPUTER,
+            EXIF_ICC_PROFILE,
+            EXIF_IFD_POINTER,
+            EXIF_IMAGE_DESCRIPTION,
+            EXIF_IMAGE_HEIGHT,
+            EXIF_IMAGE_WIDTH,
+            EXIF_JPEG_INTERCHANGE_FORMAT,
+            EXIF_JPEG_INTERCHANGE_FORMAT_LENGTH,
+            EXIF_LIGHT_SOURCE,
+            EXIF_MAKE,
+            EXIF_MAX_APERTURE_VALUE,
+            EXIF_MS_RATING,
+            EXIF_METERING_MODE,
+            EXIF_MODEL,
+            EXIF_NEW_SUBFILE_TYPE,
+            EXIF_ORIENTATION,
+            EXIF_PHOTOMETRIC_INTERPRETATION,
+            EXIF_PLANAR_CONFIGURATION,
+            EXIF_PREDICTOR,
+            EXIF_PRIMARY_CHROMATICITIES,
+            EXIF_REFERENCE_BLACK_WHITE,
+            EXIF_RESOLUTION_UNIT,
+            EXIF_ROWS_PER_STRIP,
+            EXIF_SAMPLES_PER_PIXEL,
+            EXIF_SHUTTER_SPEED_VALUE,
+            EXIF_SOFTWARE,
+            EXIF_SPECTRAL_SENSITIVITY,
+            EXIF_STRIP_BYTE_COUNTS,
+            EXIF_STRIP_OFFSETS,
+            EXIF_SUBFILE_TYPE,
+            EXIF_SUB_IFDS,
+            EXIF_SUBJECT_AREA,
+            EXIF_SUBJECT_DISTANCE,
+            EXIF_TILE_BYTE_COUNTS,
+            EXIF_TILE_LENGTH,
+            EXIF_TILE_OFFSETS,
+            EXIF_TRANSFER_FUNCTION,
+            EXIF_WHITE_POINT,
+            EXIF_X_RESOLUTION,
+            EXIF_YCBCR_COEFFICIENTS,
+            EXIF_YCBCR_POSITIONING,
+            EXIF_YCBCR_SUBSAMPLING,
+            EXIF_Y_RESOLUTION,
+
+            // DNG common tags
+            EXIF_FOCAL_LENGTH,
+            EXIF_ISO_SPEED_RATINGS,
+            EXIF_LENS_MODEL
+    );
 }
 /* vim:set et sw=4 ts=4: */

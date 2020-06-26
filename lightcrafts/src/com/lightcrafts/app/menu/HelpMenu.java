@@ -59,18 +59,17 @@ class HelpMenu extends UpdatableDisposableMenu {
 
         menuItem = MenuFactory.createMenuItem("CheckForUpdate");
         menuItem.addActionListener(
-            new ActionListener() {
-                public void actionPerformed(ActionEvent e) {
-                    CheckForUpdate.checkNowAndWait();
+                new ActionListener() {
+                    public void actionPerformed(ActionEvent e) {
+                        CheckForUpdate.checkNowAndWait();
+                    }
                 }
-            }
         );
+        menuItem.setEnabled(CheckForUpdate.isEnabled());
         add(menuItem);
 
-        if (Platform.getType() != Platform.MacOSX) {
-
+        if (!Platform.isMac()) {
             // On the Mac, the "About" item lies under the app menu.
-
             menuItem = MenuFactory.createMenuItem("About");
             menuItem.addActionListener(
                 new ActionListener() {

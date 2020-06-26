@@ -1,21 +1,25 @@
 /* Copyright (C) 2005-2011 Fabio Riccardi */
+/* Copyright (C) 2016-     Masahiro Kitagawa */
 
 package com.lightcrafts.utils.xml;
 
-import java.io.*;
-import java.util.ArrayList;
+import com.lightcrafts.utils.TextUtil;
+import com.lightcrafts.utils.file.FileUtil;
+import lombok.RequiredArgsConstructor;
+import lombok.val;
+import org.w3c.dom.CharacterData;
+import org.w3c.dom.*;
+import org.xml.sax.ErrorHandler;
+import org.xml.sax.SAXException;
+import org.xml.sax.SAXParseException;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.transform.*;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
-
-import org.w3c.dom.*;
-import org.xml.sax.SAXException;
-
-import com.lightcrafts.utils.file.FileUtil;
-import com.lightcrafts.utils.TextUtil;
+import java.io.*;
+import java.util.*;
 
 import static com.lightcrafts.image.metadata.XMPConstants.XMP_XAP_NS;
 
@@ -119,7 +123,7 @@ public final class XMLUtil {
         final ByteArrayOutputStream bos = new ByteArrayOutputStream();
         try {
             if ( includeXAPURL ) {
-                bos.write( XMP_XAP_NS.getBytes( "ASCII" ) );
+                bos.write( XMP_XAP_NS.getBytes( "UTF-8" ) );
                 bos.write( 0 );
             }
             writeDocumentTo( doc, bos );
@@ -159,11 +163,9 @@ public final class XMLUtil {
      * satisfy the given filter.
      */
     public static Node[] getChildrenOf( Element parent, XMLFilter filter ) {
-        final ArrayList<Node> result = new ArrayList<Node>();
-        final NodeList children = parent.getChildNodes();
-        final int numChildren = children.getLength();
-        for ( int i = 0; i < numChildren; ++i ) {
-            final Node child = children.item( i );
+        val result = new ArrayList<Node>();
+        val children = asList(parent.getChildNodes());
+        for (val child : children) {
             if ( filter.accept( child ) )
                 result.add( child );
         }
@@ -178,11 +180,9 @@ public final class XMLUtil {
      * @return Returns the coalesced text.
      */
     public static String getCoalescedTextChildrenOf( Element parent ) {
-        final StringBuilder buf = new StringBuilder();
-        final NodeList children = parent.getChildNodes();
-        final int numChildren = children.getLength();
-        for ( int i = 0; i < numChildren; ++i ) {
-            final Node child = children.item( i );
+        val buf = new StringBuilder();
+        val children = asList(parent.getChildNodes());
+        for (val child : children) {
             if ( child instanceof Text )
                 buf.append( ((CharacterData)child).getData() );
         }
@@ -200,10 +200,8 @@ public final class XMLUtil {
      * filter.
      */
     public static Node getFirstChildOf( Element parent, XMLFilter filter ) {
-        final NodeList children = parent.getChildNodes();
-        final int numChildren = children.getLength();
-        for ( int i = 0; i < numChildren; ++i ) {
-            final Node child = children.item( i );
+        val children = asList(parent.getChildNodes());
+        for (val child : children) {
             if ( filter.accept( child ) )
                 return child;
         }
@@ -232,10 +230,8 @@ public final class XMLUtil {
      * child node that satisfies the given filter.
      */
     public static boolean hasChild( Element parent, XMLFilter filter ) {
-        final NodeList children = parent.getChildNodes();
-        final int numChildren = children.getLength();
-        for ( int i = 0; i < numChildren; ++i ) {
-            final Node child = children.item( i );
+        val children = asList(parent.getChildNodes());
+        for (val child : children) {
             if ( filter.accept( child ) )
                 return true;
         }
@@ -250,12 +246,8 @@ public final class XMLUtil {
      * @return Returns a new {@link Document}.
      */
     public static Document readDocumentFrom( File file ) throws IOException {
-        final FileInputStream fis = new FileInputStream( file );
-        try {
-            return readDocumentFrom( fis );
-        }
-        finally {
-            fis.close();
+        try (FileInputStream fis = new FileInputStream(file)) {
+            return readDocumentFrom(fis);
         }
     }
 
@@ -283,15 +275,14 @@ public final class XMLUtil {
      */
     public static Document readDocumentFrom( String s ) throws IOException {
         s = TextUtil.trimNulls( s );
-        @SuppressWarnings( { "IOResourceOpenedButNotSafelyClosed" } )
-        final InputStream is = new ByteArrayInputStream( s.getBytes() );
+        final InputStream is = new ByteArrayInputStream( s.getBytes( "UTF-8" ) );
         try {
-            return m_builder.parse( is );
+            synchronized (m_builder) {
+                return m_builder.parse( is );
+            }
         }
         catch ( SAXException e ) {
-            final IOException ioe = new IOException( "Couldn't read XML" );
-            ioe.initCause( e );
-            throw ioe;
+            throw new IOException("Couldn't read XML", e);
         }
     }
 
@@ -303,7 +294,7 @@ public final class XMLUtil {
      */
     public static void removeChildrenFrom( Element parent ) {
         while ( true ) {
-            final Node child = parent.getFirstChild();
+            val child = parent.getLastChild();
             if ( child == null )
                 return;
             parent.removeChild( child );
@@ -319,16 +310,11 @@ public final class XMLUtil {
      * @see #removeChildrenFrom(Element)
      */
     public static void removeChildrenFrom( Element parent, XMLFilter filter ) {
-        final NodeList children = parent.getChildNodes();
-        int i = 0;
-        while ( true ) {
-            final Node child = children.item( i );
-            if ( child == null )
-                return;
-            if ( filter.accept( child ) )
-                parent.removeChild( child );
-            else
-                ++i;
+        val children = asReversedArray(parent.getChildNodes());
+        for (val child : children) {
+            if (filter.accept(child)) {
+                parent.removeChild(child);
+            }
         }
     }
 
@@ -361,15 +347,9 @@ public final class XMLUtil {
      * @see #encodeDocument(Document,boolean)
      * @see #writeDocumentTo(Document,OutputStream)
      */
-    public static void writeDocumentTo( Document doc, File file )
-        throws IOException
-    {
-        final FileOutputStream fos = new FileOutputStream( file );
-        try {
-            writeDocumentTo( doc, fos );
-        }
-        finally {
-            fos.close();
+    public static void writeDocumentTo( Document doc, File file ) throws IOException {
+        try (FileOutputStream fos = new FileOutputStream(file)) {
+            writeDocumentTo(doc, fos);
         }
     }
 
@@ -397,6 +377,38 @@ public final class XMLUtil {
         }
     }
 
+    /**
+     * Create a {@link List} of {@link Node}s from {@link NodeList}.
+     * @param nodes The {@link NodeList}.
+     * @return Said {@link List} of Nodes.
+     */
+    static List<Node> asList(NodeList nodes) {
+        return nodes.getLength() == 0
+                ? Collections.<Node>emptyList()
+                : new NodeListWrapper(nodes, false);
+    }
+
+    /**
+     * Create a reversed {@link List} of {@link Node}s from {@link NodeList}.
+     * @param nodes The {@link NodeList}.
+     * @return Said {@link List} of Nodes.
+     */
+    static List<Node> asListReversed(NodeList nodes) {
+        return nodes.getLength() == 0
+                ? Collections.<Node>emptyList()
+                : new NodeListWrapper(nodes, true);
+    }
+
+    /**
+     * Create a reversed array of {@link Node}s from {@link NodeList}.
+     * @param nodes The {@link NodeList}.
+     * @return Said array of Nodes.
+     */
+    static Node[] asReversedArray(NodeList nodes) {
+        val list = asListReversed(nodes);
+        return list.toArray(new Node[list.size()]);
+    }
+
     ////////// private ////////////////////////////////////////////////////////
 
     /**
@@ -420,7 +432,26 @@ public final class XMLUtil {
         return xform;
     }
 
-    private static DocumentBuilder m_builder;
+    @RequiredArgsConstructor
+    private static class NodeListWrapper
+            extends AbstractList<Node> implements RandomAccess {
+        private final NodeList nodes;
+        private final boolean isReversed;
+
+        @Override
+        public Node get(int index) {
+            return isReversed
+                    ? nodes.item(nodes.getLength() - 1 - index)
+                    : nodes.item(index);
+        }
+
+        @Override
+        public int size() {
+            return nodes.getLength();
+        }
+    }
+
+    private static final DocumentBuilder m_builder;
 
     private static final XMLFilter m_textNodeTypeFilter =
         new NodeTypeFilter( Node.TEXT_NODE );
@@ -431,11 +462,33 @@ public final class XMLUtil {
     static {
         try {
             m_builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
+
+            m_builder.setErrorHandler(new ErrorHandler() {
+                @Override
+                public void warning(SAXParseException e) {
+                    // Suppress XML parse errors on System.err
+                }
+
+                @Override
+                public void fatalError(SAXParseException e) throws SAXParseException {
+                    throw e;
+                }
+
+                @Override
+                public void error(SAXParseException e) throws SAXParseException {
+                    throw e;
+                }
+            });
         }
         catch ( Exception e ) {
             throw new IllegalStateException( e );
         }
-        m_xformFactory.setAttribute( "indent-number", "2" );
+        try {
+            m_xformFactory.setAttribute( "indent-number", "2" );
+        }
+        catch (IllegalArgumentException e) {
+            // ignore, file will still be correct.
+        }
     }
 }
 /* vim:set et sw=4 ts=4: */

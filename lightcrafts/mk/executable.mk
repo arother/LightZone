@@ -44,12 +44,8 @@ EXECUTABLE:=1
 ##
 # Undefine all this stuff so we don't get any defaults.
 ##
-CC:=
-CFLAGS:=
-CXX:=
 DEFINES:=
 INCLUDES:=
-LDFLAGS:=
 LINK:=
 
 COMMON_DIR:=		$(ROOT)/lightcrafts
@@ -63,7 +59,7 @@ else
 endif
 
 DEFINES:=		$(EXEC_EXTRA_DEFINES)
-INCLUDES:=		$(EXEC_EXTRA_INCLUDES)
+INCLUDES:=		$(PLATFORM_INCLUDES) $(EXEC_EXTRA_INCLUDES)
 LDFLAGS:=		$(PLATFORM_LDFLAGS) -L$(COMMON_DIR)/products \
 			$(EXEC_EXTRA_LDFLAGS)
 LINK:=			$(EXEC_EXTRA_LINK)
@@ -99,7 +95,7 @@ ifeq ($(PLATFORM),Windows)
   LINK+=		$(EXEC_WINDOWS_LINK)
 endif
 
-ifeq ($(PLATFORM),Linux)
+ifeq ($(PLATFORM),$(filter $(PLATFORM),Linux FreeBSD SunOS))
   CFLAGS+= 		$(EXEC_LINUX_CFLAGS)
   DEFINES+=		$(EXEC_LINUX_DEFINES)
   INCLUDES+= 		$(EXEC_LINUX_INCLUDES)

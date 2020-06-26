@@ -2,20 +2,22 @@
 
 package com.lightcrafts.model.ImageEditor;
 
-import com.lightcrafts.model.*;
-import com.lightcrafts.jai.utils.*;
 import com.lightcrafts.jai.JAIContext;
-
-import com.lightcrafts.mediax.jai.*;
-import com.lightcrafts.mediax.jai.operator.ConvolveDescriptor;
+import com.lightcrafts.jai.utils.Functions;
+import com.lightcrafts.model.Preview;
+import com.lightcrafts.model.Region;
 import com.lightcrafts.ui.LightZoneSkin;
 
+import javax.media.jai.JAI;
+import javax.media.jai.PlanarImage;
 import java.awt.*;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
-import java.awt.image.*;
-import java.awt.image.renderable.ParameterBlock;
 import java.awt.geom.AffineTransform;
+import java.awt.image.BufferedImage;
+import java.awt.image.DataBuffer;
+import java.awt.image.RenderedImage;
+import java.awt.image.renderable.ParameterBlock;
 import java.lang.ref.SoftReference;
 
 public class PassThroughPreview
@@ -36,40 +38,46 @@ public class PassThroughPreview
         );
     }
 
+    @Override
     public String getName() {
         return "Pass Through";
     }
 
+    @Override
     public void setDropper(Point p) {
     }
 
+    @Override
     public void addNotify() {
         // This method gets called when this Preview is added.
         engine.update(null, false);
         super.addNotify();
     }
 
+    @Override
     public void removeNotify() {
         // This method gets called when this Preview is removed.
         super.removeNotify();
     }
 
+    @Override
     public void setRegion(Region region) {
         // Fabio: only draw yellow inside the region?
     }
 
-    private SoftReference<PlanarImage> currentImage =
-        new SoftReference<PlanarImage>(null);
+    private SoftReference<PlanarImage> currentImage = new SoftReference<PlanarImage>(null);
     private Rectangle visibleRect = null;
     private BufferedImage preview = null;
 
+    @Override
     public void setSelected(Boolean selected) {
         if (!selected) {
             preview = null;
             currentImage = new SoftReference<PlanarImage>(null);
         }
     }
-    
+
+    @Override
     protected void paintComponent(Graphics graphics) {
         // Fill in the background:
         Graphics2D g = (Graphics2D) graphics;
@@ -136,10 +144,7 @@ public class PassThroughPreview
             float scale = Math.min(
                 previewSize.width / (float) visibleRect.width,
                 previewSize.height / (float) visibleRect.height);
-
-            image = ConvolveDescriptor.create(
-                image, Functions.getGaussKernel(.25 / scale), null
-            );
+            image = Functions.fastGaussianBlur(image, .25 / scale);
             ParameterBlock pb = new ParameterBlock();
             pb.addSource(image);
             pb.add(scale);
@@ -155,22 +160,24 @@ public class PassThroughPreview
         return Functions.toFastBufferedImage(image);
     }
 
+    @Override
     public void paintDone(
         PlanarImage image,
         Rectangle visibleRect,
         boolean synchronous,
         long time
     ) {
-        if (image != null) {
-            Dimension previewDimension = getSize();
-            if ((previewDimension.getHeight() > 1) &&
+        if (image == null)
+            return;
+
+        Dimension previewDimension = getSize();
+        if ((previewDimension.getHeight() > 1) &&
                 (previewDimension.getWidth() > 1)
-            ) {
-                this.visibleRect = visibleRect;
-                currentImage = new SoftReference<PlanarImage>(image);
-                preview = null;
-                repaint();
-            }
+                ) {
+            this.visibleRect = visibleRect;
+            currentImage = new SoftReference<PlanarImage>(image);
+            preview = null;
+            repaint();
         }
     }
 }

@@ -7,11 +7,11 @@ import java.awt.image.DataBuffer;
 import java.awt.image.Raster;
 import java.awt.image.RenderedImage;
 import java.awt.image.WritableRaster;
-import com.lightcrafts.mediax.jai.AreaOpImage;
-import com.lightcrafts.mediax.jai.BorderExtender;
-import com.lightcrafts.mediax.jai.ImageLayout;
-import com.lightcrafts.mediax.jai.RasterAccessor;
-import com.lightcrafts.mediax.jai.RasterFormatTag;
+import javax.media.jai.AreaOpImage;
+import javax.media.jai.BorderExtender;
+import javax.media.jai.ImageLayout;
+import javax.media.jai.RasterAccessor;
+import javax.media.jai.RasterFormatTag;
 
 import java.util.Map;
 
@@ -19,11 +19,13 @@ import java.util.Map;
  * An OpImage class to perform separable convolve on a source image.
  */
 final class BilateralFilterOpImage2 extends AreaOpImage {
-    int wr; /* window radius */
-    int ws; /* window size */
-    float kernel[], scale_r, elut[];
+    private int wr; /* window radius */
+    private int ws; /* window size */
+    private float[] kernel;
+    private float scale_r;
+    private float[] elut;
 
-    static final double SQR(double x) {
+    private static double SQR(double x) {
         return x * x;
     }
 
@@ -78,7 +80,7 @@ final class BilateralFilterOpImage2 extends AreaOpImage {
 
         RasterAccessor srcAccessor =
                 new RasterAccessor(source, srcRect, formatTags[0],
-                                   getSource(0).getColorModel());
+                                   getSourceImage(0).getColorModel());
         RasterAccessor dstAccessor =
                 new RasterAccessor(dest, destRect, formatTags[1],
                                    this.getColorModel());
@@ -105,20 +107,20 @@ final class BilateralFilterOpImage2 extends AreaOpImage {
         int dwidth = dst.getWidth();
         int dheight = dst.getHeight();
 
-        short dstDataArrays[][] = dst.getShortDataArrays();
-        int dstBandOffsets[] = dst.getBandOffsets();
+        short[][] dstDataArrays = dst.getShortDataArrays();
+        int[] dstBandOffsets = dst.getBandOffsets();
         int dstPixelStride = dst.getPixelStride();
         int dstScanlineStride = dst.getScanlineStride();
 
-        short srcDataArrays[][] = src.getShortDataArrays();
-        int srcBandOffsets[] = src.getBandOffsets();
+        short[][] srcDataArrays = src.getShortDataArrays();
+        int[] srcBandOffsets = src.getBandOffsets();
         int srcPixelStride = src.getPixelStride();
         int srcScanlineStride = src.getScanlineStride();
-        float tmpBuffer[][] = new float[3][ws * dwidth];
+        float[][] tmpBuffer = new float[3][ws * dwidth];
         int tmpBufferSize = ws * dwidth;
 
-        short dstData[] = dstDataArrays[0];
-        short srcData[] = srcDataArrays[0];
+        short[] dstData = dstDataArrays[0];
+        short[] srcData = srcDataArrays[0];
         int srcScanlineOffset = srcBandOffsets[0];
         int dstScanlineOffset = dstBandOffsets[0];
 

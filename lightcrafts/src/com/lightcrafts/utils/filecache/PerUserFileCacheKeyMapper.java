@@ -2,11 +2,12 @@
 
 package com.lightcrafts.utils.filecache;
 
-import java.io.File;
-import java.io.IOException;
-
 import com.lightcrafts.platform.Platform;
 import com.lightcrafts.utils.Version;
+import org.jetbrains.annotations.NotNull;
+
+import java.io.File;
+import java.io.IOException;
 
 /**
  * A <code>PerUserFileCacheKeyMapper</code> is-a {@link FileCacheKeyMapper}
@@ -43,7 +44,7 @@ public final class PerUserFileCacheKeyMapper implements FileCacheKeyMapper {
      * returned file exists.
      * @return Returns said {@link File}.
      */
-    public File mapKeyToFile( String key, boolean ensurePathExists ) {
+    public File mapKeyToFile(@NotNull String key, boolean ensurePathExists ) {
         final File keyAsFile = new File( key );
         String dirOfFile = keyAsFile.getParent();
         if ( dirOfFile == null )
@@ -79,20 +80,23 @@ public final class PerUserFileCacheKeyMapper implements FileCacheKeyMapper {
     private static final File m_cacheDir;
 
     /**
-     * A flag to indicate whether creating the cache was successtul.
+     * A flag to indicate whether creating the cache was successful.
      */
     private static boolean m_createSucceeded;
 
     static {
-        final String dir;
-        if ( Platform.getType() == Platform.MacOSX )
-            dir = "Library/Caches/" + Version.getApplicationName();
-        else if ( Platform.getType() == Platform.Windows )
-            dir = "Application Data\\" + Version.getApplicationName()
-                + "\\Caches";
-        else
-            dir = ".lzncache";
-        m_cacheDir = new File( System.getProperty( "user.home" ), dir );
+        if ( Platform.isMac() ) {
+            m_cacheDir = new File( System.getProperty( "user.home" ),
+                "Library/Caches/" + Version.getApplicationName() );
+        }
+        else if ( Platform.isWindows() ) {
+            m_cacheDir = new File( System.getenv( "APPDATA" ),
+                Version.getApplicationName() + "\\Caches" );
+        }
+        else {
+            m_cacheDir = new File( System.getProperty( "user.home" ),
+                ".lzncache" );
+        }
         m_createSucceeded = m_cacheDir.exists() || m_cacheDir.mkdirs();
     }
 }

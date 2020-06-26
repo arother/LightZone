@@ -7,11 +7,13 @@ import com.lightcrafts.model.OperationType;
 import com.lightcrafts.model.SliderConfig;
 import com.lightcrafts.utils.splines;
 
-import com.lightcrafts.mediax.jai.JAI;
-import com.lightcrafts.mediax.jai.LookupTableJAI;
-import com.lightcrafts.mediax.jai.PlanarImage;
+import javax.media.jai.JAI;
+import javax.media.jai.LookupTableJAI;
+import javax.media.jai.PlanarImage;
 import java.awt.image.renderable.ParameterBlock;
 import java.text.DecimalFormat;
+
+import static com.lightcrafts.ui.help.HelpConstants.HELP_TOOL_COLOR_BALANCE;
 
 /**
  * Created by IntelliJ IDEA.
@@ -41,6 +43,8 @@ public class ColorBalanceOperation extends BlendedOperation {
         super(rendering, type);
         colorInputOnly = true;
 
+        setHelpTopic(HELP_TOOL_COLOR_BALANCE);
+
         DecimalFormat format = new DecimalFormat("0.0");
 
         addSliderKey(RED);
@@ -58,16 +62,17 @@ public class ColorBalanceOperation extends BlendedOperation {
         setSliderConfig(MIDPOINT, new SliderConfig(0, 1, midpoint, 0.01, false, format));
     }
 
+    @Override
     public void setSliderValue(String key, double value) {
         value = roundValue(key, value);
 
-        if (key == RED && red != value) {
+        if (key.equals(RED) && red != value) {
             red = value;
-        } else if (key == GREEN && green != value) {
+        } else if (key.equals(GREEN) && green != value) {
             green = value;
-        } else if (key == BLUE && blue != value) {
+        } else if (key.equals(BLUE) && blue != value) {
             blue = value;
-        } else if (key == MIDPOINT && midpoint != value) {
+        } else if (key.equals(MIDPOINT) && midpoint != value) {
             midpoint = value;
         } else
             return;
@@ -76,13 +81,14 @@ public class ColorBalanceOperation extends BlendedOperation {
     }
 
     // TODO: get the right values for hilights and shadows
+    @Override
     public void setChoiceValue(String key, String value) {
-        if (key == MIDPOINT) {
-            if (value == HILIGHTS) {
+        if (key.equals(MIDPOINT)) {
+            if (value.equals(HILIGHTS)) {
                 midpoint = 0.62;
-            } else if (value == MIDTONES) {
+            } else if (value.equals(MIDTONES)) {
                 midpoint = 0.18;
-            } else if (value == SHADOWS) {
+            } else if (value.equals(SHADOWS)) {
                 midpoint = 0.04;
             }
         }
@@ -94,30 +100,31 @@ public class ColorBalanceOperation extends BlendedOperation {
             super(source);
         }
 
+        @Override
         public PlanarImage setFront() {
             double tred = red / 2 - blue / 4 - green / 4;
             double tgreen = green / 2 - red / 4 - blue / 4;
             double tblue = blue / 2 - red / 4 - green / 4;
 
-            double polygon[][] = {
-                {0,     0},
-                {midpoint, 0},
-                {1.0,   0},
+            double[][] polygon = {
+                    {0, 0},
+                    {midpoint, 0},
+                    {1.0, 0},
             };
 
             polygon[1][1] = tred;
-            double redCurve[][] = new double[256][2];
+            double[][] redCurve = new double[256][2];
             splines.bspline(3, polygon, redCurve);
 
             polygon[1][1] = tgreen;
-            double greenCurve[][] = new double[256][2];
+            double[][] greenCurve = new double[256][2];
             splines.bspline(3, polygon, greenCurve);
 
             polygon[1][1] = tblue;
-            double blueCurve[][] = new double[256][2];
+            double[][] blueCurve = new double[256][2];
             splines.bspline(3, polygon, blueCurve);
 
-            short table[][] = new short[3][0x10000];
+            short[][] table = new short[3][0x10000];
 
             splines.Interpolator interpolator = new splines.Interpolator();
 
@@ -141,18 +148,22 @@ public class ColorBalanceOperation extends BlendedOperation {
         }
     }
 
+    @Override
     protected BlendedTransform createBlendedOp(PlanarImage source) {
         return new ColorBalance(source);
     }
 
+    @Override
     public boolean neutralDefault() {
         return true;
     }
 
+    @Override
     protected void updateOp(Transform op) {
         op.update();
     }
 
+    @Override
     public OperationType getType() {
         return type;
     }

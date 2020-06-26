@@ -23,11 +23,11 @@ import static com.lightcrafts.image.types.TIFFConstants.*;
  *
  * @author Paul J. Lucas [paul@lightcrafts.com]
  */
-@SuppressWarnings({"CloneableClassWithoutClone"})
 public class EXIFDirectory extends ImageMetadataDirectory implements
-    ApertureProvider, ArtistProvider, BitsPerChannelProvider, CaptionProvider,
-    CaptureDateTimeProvider, CopyrightProvider, FlashProvider,
-    FocalLengthProvider, ISOProvider, MakeModelProvider, OrientationProvider,
+    ApertureProvider, ArtistProvider, BitsPerChannelProvider,
+    CaptionProvider, CaptureDateTimeProvider,
+    CopyrightProvider, FlashProvider, FocalLengthProvider,
+    ISOProvider, LensProvider, MakeModelProvider, OrientationProvider,
     RatingProvider, ResolutionProvider, ShutterSpeedProvider,
     WidthHeightProvider {
 
@@ -55,6 +55,7 @@ public class EXIFDirectory extends ImageMetadataDirectory implements
     /**
      * {@inheritDoc}
      */
+    @Override
     public float getAperture() {
         ImageMetaValue value = getValue( EXIF_FNUMBER );
         if ( value == null )
@@ -67,6 +68,7 @@ public class EXIFDirectory extends ImageMetadataDirectory implements
     /**
      * {@inheritDoc}
      */
+    @Override
     public String getArtist() {
         final ImageMetaValue value = getValue( EXIF_ARTIST );
         return value != null ? value.getStringValue() : null;
@@ -75,6 +77,7 @@ public class EXIFDirectory extends ImageMetadataDirectory implements
     /**
      * {@inheritDoc}
      */
+    @Override
     public int getBitsPerChannel() {
         final ImageMetaValue value = getValue( EXIF_BITS_PER_SAMPLE );
         return value != null ? value.getIntValue() : 0;
@@ -83,6 +86,7 @@ public class EXIFDirectory extends ImageMetadataDirectory implements
     /**
      * {@inheritDoc}
      */
+    @Override
     public String getCameraMake( boolean includeModel ) {
         return getCameraMake( EXIF_MAKE, EXIF_MODEL, includeModel );
     }
@@ -90,6 +94,7 @@ public class EXIFDirectory extends ImageMetadataDirectory implements
     /**
      * {@inheritDoc}
      */
+    @Override
     public String getCaption() {
         final ImageMetaValue value = getValue( EXIF_IMAGE_DESCRIPTION );
         return value != null ? value.getStringValue() : null;
@@ -98,6 +103,7 @@ public class EXIFDirectory extends ImageMetadataDirectory implements
     /**
      * {@inheritDoc}
      */
+    @Override
     public Date getCaptureDateTime() {
         ImageMetaValue value = getValue( EXIF_DATE_TIME_ORIGINAL );
         if ( value == null )
@@ -109,6 +115,7 @@ public class EXIFDirectory extends ImageMetadataDirectory implements
     /**
      * {@inheritDoc}
      */
+    @Override
     public String getCopyright() {
         final ImageMetaValue value = getValue( EXIF_COPYRIGHT );
         return value != null ? value.getStringValue() : null;
@@ -117,14 +124,21 @@ public class EXIFDirectory extends ImageMetadataDirectory implements
     /**
      * {@inheritDoc}
      */
-    public String getFlash() {
+    @Override
+    public int getFlash() {
         final ImageMetaValue flashValue = getValue( EXIF_FLASH );
-        return hasTagValueLabelFor( flashValue );
+        if ( flashValue != null ) {
+            final int flashBits = flashValue.getIntValue();
+            if ( (flashBits & TIFF_FLASH_NOT_PRESENT_BIT) == 0 )
+                return flashBits;
+        }
+        return -1;
     }
 
     /**
      * {@inheritDoc}
      */
+    @Override
     public float getFocalLength() {
         final ImageMetaValue value = getValue( EXIF_FOCAL_LENGTH );
         return value != null ? value.getFloatValue() : 0;
@@ -133,6 +147,7 @@ public class EXIFDirectory extends ImageMetadataDirectory implements
     /**
      * {@inheritDoc}
      */
+    @Override
     public int getImageHeight() {
         return MetadataUtil.maxTagValue(
             this, EXIF_IMAGE_HEIGHT, EXIF_PIXEL_Y_DIMENSION
@@ -142,6 +157,7 @@ public class EXIFDirectory extends ImageMetadataDirectory implements
     /**
      * {@inheritDoc}
      */
+    @Override
     public int getImageWidth() {
         return MetadataUtil.maxTagValue(
             this, EXIF_IMAGE_WIDTH, EXIF_PIXEL_X_DIMENSION
@@ -151,9 +167,26 @@ public class EXIFDirectory extends ImageMetadataDirectory implements
     /**
      * {@inheritDoc}
      */
+    @Override
     public int getISO() {
         final ImageMetaValue value = getValue( EXIF_ISO_SPEED_RATINGS );
         return value != null ? value.getIntValue() : 0;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public String getLens() {
+        final ImageMetaValue model = getValue(EXIF_LENS_MODEL);
+        if (model != null) {
+            return model.getStringValue();
+        }
+        final ImageMetaValue info = getValue(EXIF_LENS_INFO);
+        if (info != null) {
+            return makeLensLabelFrom(info);
+        }
+        return null;
     }
 
     /**
@@ -161,6 +194,7 @@ public class EXIFDirectory extends ImageMetadataDirectory implements
      *
      * @return Always returns &quot;EXIF&quot;.
      */
+    @Override
     public String getName() {
         return "EXIF";
     }
@@ -168,6 +202,7 @@ public class EXIFDirectory extends ImageMetadataDirectory implements
     /**
      * {@inheritDoc}
      */
+    @Override
     public ImageOrientation getOrientation() {
         final ImageMetaValue value = getValue( EXIF_ORIENTATION );
         if ( value != null )
@@ -183,6 +218,7 @@ public class EXIFDirectory extends ImageMetadataDirectory implements
     /**
      * {@inheritDoc}
      */
+    @Override
     public int getRating() {
         final ImageMetaValue rating = getValue( EXIF_MS_RATING );
         return rating != null ? rating.getIntValue() : 0;
@@ -191,6 +227,7 @@ public class EXIFDirectory extends ImageMetadataDirectory implements
     /**
      * {@inheritDoc}
      */
+    @Override
     public double getResolution() {
         final ImageMetaValue res = getValue( EXIF_X_RESOLUTION );
         return res != null ? res.getDoubleValue() : 0;
@@ -199,6 +236,7 @@ public class EXIFDirectory extends ImageMetadataDirectory implements
     /**
      * {@inheritDoc}
      */
+    @Override
     public int getResolutionUnit() {
         final ImageMetaValue unit = getValue( EXIF_RESOLUTION_UNIT );
         if ( unit != null ) {
@@ -215,6 +253,7 @@ public class EXIFDirectory extends ImageMetadataDirectory implements
     /**
      * {@inheritDoc}
      */
+    @Override
     public float getShutterSpeed() {
         boolean isAPEX = false;
         ImageMetaValue value = getValue( EXIF_EXPOSURE_TIME );
@@ -232,6 +271,7 @@ public class EXIFDirectory extends ImageMetadataDirectory implements
     /**
      * {@inheritDoc}
      */
+    @Override
     public ImageMetaTagInfo getTagInfoFor( Integer id ) {
         return m_tagsByID.get( id );
     }
@@ -239,6 +279,7 @@ public class EXIFDirectory extends ImageMetadataDirectory implements
     /**
      * {@inheritDoc}
      */
+    @Override
     public ImageMetaTagInfo getTagInfoFor( String name ) {
         return m_tagsByName.get( name );
     }
@@ -246,6 +287,44 @@ public class EXIFDirectory extends ImageMetadataDirectory implements
     /**
      * {@inheritDoc}
      */
+    public void setArtist( String artist ) {
+        setValue( EXIF_ARTIST, artist );
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public void setCaption( String caption ) {
+        setValue( EXIF_IMAGE_DESCRIPTION, caption );
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public void setCopyright( String copyright ) {
+        setValue( EXIF_COPYRIGHT, copyright );
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public void setOrientation( ImageOrientation orientation ) {
+        setValue( EXIF_ORIENTATION, orientation.getTIFFConstant() );
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public void setRating( int rating ) {
+        if ( rating < 0 || rating > 5 )
+            throw new IllegalArgumentException( "rating must be between 0-5" );
+        setValue( EXIF_MS_RATING, rating );
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public Collection<Element> toXMP( Document xmpDoc  ) {
         return toXMP( xmpDoc, XMP_EXIF_NS, XMP_EXIF_PREFIX );
     }
@@ -253,6 +332,7 @@ public class EXIFDirectory extends ImageMetadataDirectory implements
     /**
      * {@inheritDoc}
      */
+    @Override
     public String valueToString( ImageMetaValue value ) {
         switch ( value.getOwningTagID() ) {
             case EXIF_APERTURE_VALUE:
@@ -301,10 +381,25 @@ public class EXIFDirectory extends ImageMetadataDirectory implements
     ////////// protected //////////////////////////////////////////////////////
 
     /**
+     * Gets the priority of this directory for providing the metadata supplied
+     * by implementing the given provider interface.
+     * <p>
+     * The priority is guaranteed to be higher than the default.
+     *
+     * @param p The provider interface to get the priority for.
+     * @return Returns said priority.
+     */
+    @Override
+    protected int getProviderPriorityFor( Class<? extends ImageMetadataProvider> p ) {
+        return PROVIDER_PRIORITY_DEFAULT + 10;
+    }
+
+    /**
      * Get the {@link ResourceBundle} to use for tags.
      *
      * @return Returns said {@link ResourceBundle}.
      */
+    @Override
     protected ResourceBundle getTagLabelBundle() {
         return m_tagBundle;
     }
@@ -312,6 +407,7 @@ public class EXIFDirectory extends ImageMetadataDirectory implements
     /**
      * {@inheritDoc}
      */
+    @Override
     protected Class<? extends ImageMetaTags> getTagsInterface() {
         return EXIFTags.class;
     }
@@ -403,6 +499,9 @@ public class EXIFDirectory extends ImageMetadataDirectory implements
         add( EXIF_JPEG_INTERCHANGE_FORMAT, "JPEGInterchangeFormat", META_ULONG, false );
         add( EXIF_JPEG_INTERCHANGE_FORMAT_LENGTH, "JPEGInterchangeFormatLength", META_ULONG, false );
         add( EXIF_LIGHT_SOURCE, "LightSource", META_USHORT, false );
+        add( EXIF_LENS_INFO, "LensInfo", META_URATIONAL, false );
+        add( EXIF_LENS_MAKE, "LensMake", META_STRING, false );
+        add( EXIF_LENS_MODEL, "LensModel", META_STRING, false );
         add( EXIF_MAKE, "Make", META_STRING, false );
         add( EXIF_MAKER_NOTE, "MakerNote", META_UNDEFINED, false );
         add( EXIF_MAX_APERTURE_VALUE, "MaxApertureValue", META_URATIONAL, false );

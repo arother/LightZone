@@ -5,6 +5,8 @@ package com.lightcrafts.platform.windows;
 import java.io.IOException;
 import java.io.File;
 import java.util.Collection;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import com.lightcrafts.image.types.ImageType;
 
@@ -80,16 +82,21 @@ public final class WindowsFileUtil {
      */
     public static String openFile( String initialDir ) throws IOException {
         final Collection<ImageType> types = ImageType.getAllTypes();
-        final String[] displayStrings = new String[ types.size() + 1 ];
-        final String[][] extensions = new String[ types.size() + 1 ][];
-        displayStrings[0] = "All files";
-        extensions[0] = new String[]{ "*" };
-        int i = 0;
-        for ( ImageType t : types ) {
-            ++i;
-            displayStrings[i] = t.getName();
-            extensions[i] = t.getExtensions();
-        }
+
+        Stream<String> displayStringsHead = Stream.of("All files");
+        Stream<String> displayStringsRest =
+                types.stream().map(ImageType::getName);
+        final String[] displayStrings =
+                Stream.concat(displayStringsHead, displayStringsRest)
+                .toArray(String[]::new);
+
+        Stream<String[]> extensionsStreamHead = Stream.of(new String[][]{{"*"}});
+        Stream<String[]> extensionsStreamRest =
+                types.stream().map(ImageType::getExtensions);
+        final String[][] extensions =
+                Stream.concat(extensionsStreamHead, extensionsStreamRest)
+                .toArray(String[][]::new);
+
         return openFile( initialDir, displayStrings, extensions );
     }
 
@@ -111,18 +118,12 @@ public final class WindowsFileUtil {
                                    String[][] extensions ) throws IOException {
         if ( displayStrings.length != extensions.length )
             throw new IllegalArgumentException();
-        final String[] patterns = new String[ extensions.length ];
-        for ( int i = 0; i < extensions.length; ++i ) {
-            patterns[i] = "";
-            boolean seperator = false;
-            for ( String extension : extensions[i] ) {
-                if ( seperator )
-                    patterns[i] += ';';
-                else
-                    seperator = true;
-                patterns[i] += "*." + extension;
-            }
-        }
+        final String[] patterns = Stream.of(extensions)
+                .map(extensionArray -> Stream.of(extensionArray)
+                        .map(extension -> "*." + extension)
+                        .collect(Collectors.joining(";"))
+                )
+                .toArray(String[]::new);
         return openFile( initialDir, displayStrings, patterns );
     }
 
@@ -135,33 +136,6 @@ public final class WindowsFileUtil {
      */
     public static String resolveShortcut( String path ) {
         return isShortcut( path ) ? resolveShortcutImpl( path ) : path;
-    }
-
-    /**
-     * Tell Windows Explorer to show the folder the given file is in and to
-     * select the file.
-     *
-     * @param path The full path of the file to show and select.
-     * @return Returns <code>true</code> only if the file was selected
-     * successfully.
-     */
-    public static boolean showInExplorer( String path ) {
-        try {
-            Runtime.getRuntime().exec( "explorer /select, " + path );
-            //
-            // We'd like to be able to test the exit value of the process, but
-            // explorer always returns 1 regardless of success/failure, so
-            // always return true.
-            //
-            // Note that if it does fail, explorer displays an error alert to
-            // the user.
-            //
-            return true;
-        }
-        catch ( IOException e ) {
-            // ignore
-        }
-        return false;
     }
 
     ////////// private ////////////////////////////////////////////////////////

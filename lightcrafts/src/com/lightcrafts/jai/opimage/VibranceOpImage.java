@@ -2,21 +2,22 @@
 
 package com.lightcrafts.jai.opimage;
 
-import com.lightcrafts.mediax.jai.PointOpImage;
-import com.lightcrafts.mediax.jai.ImageLayout;
 import com.lightcrafts.jai.JAIContext;
+import com.lightcrafts.utils.LCMatrix;
 
-import java.awt.image.RenderedImage;
-import java.awt.image.Raster;
-import java.awt.image.WritableRaster;
+import javax.media.jai.ImageLayout;
+import javax.media.jai.PointOpImage;
+import javax.media.jai.RasterAccessor;
+import javax.media.jai.RasterFormatTag;
 import java.awt.*;
-import java.awt.color.ICC_ProfileRGB;
-import java.awt.color.ICC_Profile;
 import java.awt.color.ColorSpace;
+import java.awt.color.ICC_Profile;
+import java.awt.color.ICC_ProfileRGB;
+import java.awt.image.DataBuffer;
+import java.awt.image.Raster;
+import java.awt.image.RenderedImage;
+import java.awt.image.WritableRaster;
 import java.util.Map;
-
-import sun.awt.image.ShortInterleavedRaster;
-import Jama.Matrix;
 
 /**
  * Copyright (C) Light Crafts, Inc.
@@ -25,11 +26,11 @@ import Jama.Matrix;
  * Time: 4:32:46 PM
  */
 public class VibranceOpImage extends PointOpImage {
-    private final float transform[][];
+    private final float[][] transform;
     private final boolean saturationIncrease;
     private final float[][] toLinearsRGB;
 
-    public VibranceOpImage(RenderedImage source, float transform[][], Map config) {
+    public VibranceOpImage(RenderedImage source, float[][] transform, Map config) {
         super(source, new ImageLayout(source), config, true);
         permitInPlaceOperation();
         this.transform = transform;
@@ -37,13 +38,31 @@ public class VibranceOpImage extends PointOpImage {
         saturationIncrease = transform[0][0] > 1;
 
         ICC_ProfileRGB linRGB = (ICC_ProfileRGB) ICC_Profile.getInstance(ColorSpace.CS_LINEAR_RGB);
-        toLinearsRGB = new Matrix(linRGB.getMatrix()).inverse().times(new Matrix(((ICC_ProfileRGB) JAIContext.linearProfile).getMatrix())).getArrayFloat();
+        toLinearsRGB = LCMatrix.getArrayFloat(
+                new LCMatrix(linRGB.getMatrix())
+                        .invert()
+                        .mult(new LCMatrix(((ICC_ProfileRGB) JAIContext.linearProfile).getMatrix()))
+        );
     }
 
+    @Override
     protected void computeRect(Raster[] sources,
                                WritableRaster dest,
                                Rectangle destRect) {
-        ushortLoop((ShortInterleavedRaster) sources[0], (ShortInterleavedRaster) dest);
+        // Retrieve format tags.
+        RasterFormatTag[] formatTags = getFormatTags();
+
+        RasterAccessor src = new RasterAccessor(sources[0], destRect, formatTags[0],
+                getSourceImage(0).getColorModel());
+        RasterAccessor dst = new RasterAccessor(dest, destRect, formatTags[1], getColorModel());
+
+        switch (dst.getDataType()) {
+            case DataBuffer.TYPE_USHORT:
+                ushortLoop(src, dst);
+                break;
+            default:
+                throw new UnsupportedOperationException("Unsupported data type: " + dst.getDataType());
+        }
     }
 
     /*
@@ -68,17 +87,17 @@ public class VibranceOpImage extends PointOpImage {
         return y < 0 ? -angle : angle;
     }
 
-    protected void ushortLoop(ShortInterleavedRaster src, ShortInterleavedRaster dst) {
+    protected void ushortLoop(RasterAccessor src, RasterAccessor dst) {
         int width = src.getWidth();
         int height = src.getHeight();
 
-        short dstData[] = dst.getDataStorage();
-        int dstBandOffsets[] = dst.getDataOffsets();
+        short[] dstData = dst.getShortDataArray(0);
+        int[] dstBandOffsets = dst.getBandOffsets();
         int dstLineStride = dst.getScanlineStride();
         int dstPixelStride = dst.getPixelStride();
 
-        short srcData[] = src.getDataStorage();
-        int srcBandOffsets[] = src.getDataOffsets();
+        short[] srcData = src.getShortDataArray(0);
+        int[] srcBandOffsets = src.getBandOffsets();
         int srcLineStride = src.getScanlineStride();
         int srcPixelStride = src.getPixelStride();
 

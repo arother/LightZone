@@ -2,7 +2,7 @@
 
 package com.lightcrafts.jai.opimage;
 
-import com.lightcrafts.mediax.jai.*;
+import javax.media.jai.*;
 import com.lightcrafts.utils.DCRaw;
 import com.lightcrafts.jai.utils.Functions;
 
@@ -18,7 +18,7 @@ import java.util.Arrays;
  * Time: 11:18:24 AM
  */
 public class RGBDemosaicOpImage extends AreaOpImage {
-    static final BorderExtender copyExtender = BorderExtender.createInstance(BorderExtender.BORDER_ZERO);
+    private static final BorderExtender copyExtender = BorderExtender.createInstance(BorderExtender.BORDER_ZERO);
 
     private final int rx, ry, gx, gy, bx, by;
 
@@ -89,7 +89,7 @@ public class RGBDemosaicOpImage extends AreaOpImage {
                 new RasterAccessor(tmp, tmpRect, formatTags[1],
                                    getColorModel());
 
-        assert (dstAccessor.getDataType() == DataBuffer.TYPE_USHORT);        
+        assert (dstAccessor.getDataType() == DataBuffer.TYPE_USHORT);
 
         ushortLoop(srcAccessor, tmpAccessor);
         Functions.copyData(dest, tmp);
@@ -104,16 +104,16 @@ public class RGBDemosaicOpImage extends AreaOpImage {
     }
 
     protected void ushortLoop(RasterAccessor src, RasterAccessor dst) {
-        short dstDataArrays[][] = dst.getShortDataArrays();
-        int dstBandOffsets[] = dst.getBandOffsets();
+        short[][] dstDataArrays = dst.getShortDataArrays();
+        int[] dstBandOffsets = dst.getBandOffsets();
         int dstScanlineStride = dst.getScanlineStride()/3;
 
-        short srcDataArrays[][] = src.getShortDataArrays();
-        int srcBandOffsets[] = src.getBandOffsets();
+        short[][] srcDataArrays = src.getShortDataArrays();
+        int[] srcBandOffsets = src.getBandOffsets();
         int srcScanlineStride = src.getScanlineStride();
 
-        short destData[] = dstDataArrays[0];
-        short srcData[] = srcDataArrays[0];
+        short[] destData = dstDataArrays[0];
+        short[] srcData = srcDataArrays[0];
 
         int srcOffset = srcBandOffsets[0];
 

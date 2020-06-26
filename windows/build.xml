@@ -7,12 +7,32 @@
   <property name="common-dir" value="../lightcrafts"/>
   <property file="${common-dir}/resources/com/lightcrafts/utils/resources/Version.properties"/>
 
-  <property name="installer-name" value="${app-name}-Installer.exe"/>
-  <property name="licensetype" value="ESD"/>
+  <exec executable="uname" vmlauncher="false" failonerror="true"
+        outputproperty="processor">
+    <arg value="-m"/>
+  </exec>
+  <property environment="env"/>
+  <condition property="64bit">
+    <or>
+      <matches string="${env.TARGET}" pattern="x86_64"/>
+      <matches string="${env.TARGET}" pattern="amd64"/>
+      <and>
+        <not>
+          <matches string="${env.TARGET}" pattern="i.*86"/>
+        </not>
+        <matches string="${processor}" pattern="^.*64$"/>
+      </and>
+    </or>
+  </condition>
+  <condition property="jre-arch" value="amd64" else="x86">
+    <isset property="64bit"/>
+  </condition>
+
+  <property name="installer-name" value="${app-name}-Installer-${jre-arch}.exe"/>
   <property name="windows-jar" value="products/lightcrafts-windows.jar"/>
 
   <!-- The default maxmemory for the run* targets. -->
-  <property name="maxmemory" value="256m"/>
+  <property name="maxmemory" value="512m"/>
 
   <exec executable="cat" vmlauncher="false" failonerror="true"
         outputproperty="app-version">
@@ -28,18 +48,19 @@
   <target name="common">
     <ant dir="${common-dir}" target="jar"/>
     <exec executable="make" dir="products" failonerror="true"
-          vmlauncher="false"/>
+          vmlauncher="false">
+      <arg value="-j"/>
+    </exec>
   </target>
 
   <target name="javac" depends="common">
     <mkdir dir="build"/>
-    <javac destdir="build" source="1.6" target="1.6" debug="true">
+    <mkdir dir="javah"/>
+    <javac destdir="build" debug="true"
+           release="11" nativeheaderdir="javah">
       <src path="src"/>
       <classpath>
         <fileset dir="${common-dir}/products">
-          <include name="*.jar"/>
-        </fileset>
-        <fileset dir="lib">
           <include name="*.jar"/>
         </fileset>
       </classpath>
@@ -50,13 +71,14 @@
     <exec executable="make" dir="jnisrc" failonerror="true" vmlauncher="false"/>
   </target>
 
-  <target name="helpers">
-    <exec executable="make" dir="helpers" failonerror="true" vmlauncher="false">
+  <target name="build" depends="javac, jni"/>
+
+  <target name="help">
+    <exec executable="make" dir="resources/help" failonerror="true"
+          vmlauncher="false">
       <arg value="APP_NAME=${app-name}"/>
     </exec>
   </target>
-
-  <target name="build" depends="javac, jni"/>
 
   <!--===== Make a jar file ================================================-->
 
@@ -102,107 +124,41 @@
       <sysproperty key="lightcrafts.debug" value="1"/>
       <sysproperty key="IDE" value="1"/>
       <sysproperty key="file.encoding" value="UTF8"/>
+      <sysproperty key="lensfun.dir" value="./share/lensfun"/>
     </java>
   </target>
 
   <!--===== Make a Windows installer =======================================-->
 
   <target name="build-installer-only">
-
-    <copy file="helpers/JavaAppLauncher/${app-name}.exe"
-          tofile="products/${app-name}.exe" overwrite="true"/>
-    <chmod file="products/${app-name}.exe" perm="775"/>
-
-    <exec executable="make" dir="resources/sign" failonerror="true"
-          vmlauncher="false">
-      <arg value="EXE_TO_SIGN=../../products/${app-name}.exe"/>
-    </exec>
-
-    <copy file="helpers/JavaAppLauncher/lightzone.jvmargs" todir="products"
-          overwrite="true">
-    </copy>
-
-    <exec executable="make" dir="resources/help" failonerror="true"
-          vmlauncher="false">
-      <arg value="APP_NAME=${app-name}"/>
-    </exec>
-
     <exec executable="install4jc.exe" failonerror="true">
       <!-- The "-D LC_VERSION=..." has to be given to install4j as two seperate
            arguments, hence the use of line= rather than value= since the
            latter, even if there's a space in it, will be given as a single
            argument containing a space and not as two seperate arguments. -->
       <arg line="-D LC_VERSION=${app-version}"/>
-      <arg file="lightzone.install4j"/>
+      <arg file="lightzone-${jre-arch}.install4j"/>
     </exec>
-
-    <exec executable="make" dir="resources/sign" failonerror="true"
-          vmlauncher="false">
-      <arg value="EXE_TO_SIGN=../../${installer-name}"/>
-    </exec>
-
   </target>
-  <target name="build-installer" depends="jar, helpers, build-installer-only"/>
-
-  <target name="installer-esd">
-    <antcall target="build-installer">
-      <param name="licensetype" value="ESD"/>
-    </antcall>
-  </target>
-
-  <target name="installer-tb">
-    <antcall target="build-installer">
-      <param name="licensetype" value="TB"/>
-    </antcall>
-  </target>
-
-  <!--===== CruiseControl ==================================================-->
-
-  <property name="cc-dir" value="cruisecontrol"/>
-
-  <target name="cc-build">
-    <antcall target="cc-clean"/>
-    <exec executable="bash"
-          outputproperty="git-branch" failonerror="true" vmlauncher="false">
-      <arg path="${common-dir}/tools/bin/lc-git-branch"/>
-    </exec>
-    <exec executable="bash"
-          outputproperty="git-revision" failonerror="true" vmlauncher="false">
-      <arg path="${common-dir}/tools/bin/lc-git-revision"/>
-    </exec>
-
-    <mkdir dir="cruisecontrol"/>
-
-    <antcall target="installer-esd"/>
-    <move file="${installer-name}"
-          tofile="${cc-dir}/${app-name}-${git-branch}-r${git-revision}-ESD.exe"/>
-
-    <antcall target="installer-tb"/>
-    <move file="${installer-name}"
-          tofile="${cc-dir}/${app-name}-${git-branch}-r${git-revision}-TB.exe"/>
-  </target>
-
-  <target name="cc-clean">
-    <delete dir="${cc-dir}"/>
-  </target>
+  <target name="build-installer" depends="jar, help, build-installer-only"/>
 
   <!--===== Clean up =======================================================-->
 
   <target name="clean-up">
     <ant dir="${common-dir}" target="${clean-method}"/>
-    <delete dir="build"/>
-    <delete file="${installer-name}"/>
-    <exec executable="make" dir="helpers">
-      <arg value="${clean-method}"/>
-    </exec>
+    <parallel>
+      <delete dir="build"/>
+      <delete dir="javah"/>
+      <delete file="${installer-name}"/>
+      <delete file="products/lightzone.jvmargs"/>
+    </parallel>
     <exec executable="make" dir="jnisrc">
       <arg value="${clean-method}"/>
     </exec>
     <exec executable="make" dir="products">
+      <arg value="-j"/>
       <arg value="${clean-method}"/>
     </exec>
-    <delete file="products/lightzone.jvmargs"/>
-    <antcall target="cc-clean"/>
   </target>
 
   <target name="distclean">

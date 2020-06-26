@@ -1,4 +1,5 @@
 /* Copyright (C) 2005-2011 Fabio Riccardi */
+/* Copyright (C) 2015 Masahiro Kitagawa */
 
 package com.lightcrafts.ui.region.curves;
 
@@ -23,8 +24,8 @@ abstract class AbstractCurve implements Curve {
     // update these member variables to match the current values for control
     // points in the "points" List:
     GeneralPath shape;
-    LinkedList segments;        // Line2D, QuadCurve2D, or CubicCurve2D
-    LinkedList points;          // Point2Ds for interpolation
+    LinkedList<Shape> segments;        // Line2D, QuadCurve2D, or CubicCurve2D
+    LinkedList<Point2D> points;          // Point2Ds for interpolation
 
     private final static float NominalRadius = 2f;  // Default for radius
 
@@ -46,6 +47,9 @@ abstract class AbstractCurve implements Curve {
     private Shape innerShape;           // Keep slaved to "shape" above
     private float width;                // Gap between shape and innerShape
 
+    private Integer version;            // Curve version, null if the Curve was
+                                        // created with LightZone v4.1.3 or less
+
     private ClonePoint clonePt;         // The clone point, maybe null
 
     private int highlightPoint;         // A point for special drawing
@@ -55,8 +59,9 @@ abstract class AbstractCurve implements Curve {
     private boolean highlightInterior;  // Show the Shape interior
 
     public AbstractCurve() {
-        points = new LinkedList();
-        segments = new LinkedList();
+        points = new LinkedList<Point2D>();
+        segments = new LinkedList<Shape>();
+        version = 2;
         updateStrokes(NominalRadius);
         resetHighlights();
     }
@@ -88,7 +93,7 @@ abstract class AbstractCurve implements Curve {
     }
 
     public void translate(double dx, double dy) {
-        for (Iterator i=points.iterator(); i.hasNext(); ) {
+        for (Iterator<Point2D> i=points.iterator(); i.hasNext(); ) {
             Point2D p = (Point2D) i.next();
             double x = p.getX() + dx;
             double y = p.getY() + dy;
@@ -120,7 +125,7 @@ abstract class AbstractCurve implements Curve {
         Rectangle2D bounds = null;
         if (shape != null) {
             bounds = shape.getBounds();
-            for (Iterator i=points.iterator(); i.hasNext(); ) {
+            for (Iterator<Point2D> i=points.iterator(); i.hasNext(); ) {
                 Point2D p = (Point2D) i.next();
                 Rectangle2D r = getPointBounds(p);
                 bounds.add(r);
@@ -153,7 +158,7 @@ abstract class AbstractCurve implements Curve {
 
     public int getSegmentAt(Point2D p) {
         int n = 0;
-        for (Iterator i=segments.iterator(); i.hasNext(); ) {
+        for (Iterator<Shape> i=segments.iterator(); i.hasNext(); ) {
             Shape thinSegment = (Shape) i.next();
             Shape thickSegment =
                 mouseHitStroke.createStrokedShape(thinSegment);
@@ -313,7 +318,7 @@ abstract class AbstractCurve implements Curve {
                     drawRegular(g, shape);
                 }
                 if (highlightGlobal) {
-                    for (Iterator i=points.iterator(); i.hasNext(); ) {
+                    for (Iterator<Point2D> i=points.iterator(); i.hasNext(); ) {
                         Point2D p = (Point2D) i.next();
                         drawPointRegular(g, p);
                     }
@@ -351,12 +356,12 @@ abstract class AbstractCurve implements Curve {
             return false;
         }
         AbstractCurve curve = (AbstractCurve) c;
-        LinkedList p = curve.points;
+        LinkedList<Point2D> p = curve.points;
         if (points.size() != p.size()) {
             return false;
         }
-        Iterator i=points.iterator();
-        Iterator j=p.iterator();
+        Iterator<Point2D> i = points.iterator();
+        Iterator<Point2D> j = p.iterator();
         while (i.hasNext()) {
             if (! i.next().equals(j.next())) {
                 return false;
@@ -376,8 +381,8 @@ abstract class AbstractCurve implements Curve {
             // Can't happen: all members are Cloneable
             System.err.println("Broken Curve.clone(): " + e.getMessage());
         }
-        clone.segments = new LinkedList();
-        for (Iterator i=segments.iterator(); i.hasNext(); ) {
+        clone.segments = new LinkedList<Shape>();
+        for (Iterator<Shape> i=segments.iterator(); i.hasNext(); ) {
             Shape segment = (Shape) i.next();
             if (segment instanceof Line2D) {
                 segment = (Line2D) ((Line2D) segment).clone();
@@ -393,8 +398,8 @@ abstract class AbstractCurve implements Curve {
             }
             clone.segments.add(segment);
         }
-        clone.points = new LinkedList();
-        for (Iterator i=points.iterator(); i.hasNext(); ) {
+        clone.points = new LinkedList<Point2D>();
+        for (Iterator<Point2D> i=points.iterator(); i.hasNext(); ) {
             Point2D p = (Point2D) i.next();
             p = (Point2D) p.clone();
             clone.points.add(p);
@@ -524,15 +529,19 @@ abstract class AbstractCurve implements Curve {
 
     private final static String PointTag = "Point";
     private final static String WidthTag = "Width";
+    private final static String VersionTag = "Version";
     private final static String CloneTag = "Clone";
 
     public void save(XmlNode node) {
         node.setAttribute(WidthTag, Float.toString(width));
-        for (Iterator i=points.iterator(); i.hasNext(); ) {
+        for (Iterator<Point2D> i=points.iterator(); i.hasNext(); ) {
             Point2D p = (Point2D) i.next();
             XmlNode pointNode = node.addChild(PointTag);
             pointNode.setAttribute("x", Double.toString(p.getX()));
             pointNode.setAttribute("y", Double.toString(p.getY()));
+        }
+        if (version != null) {
+            node.setAttribute(VersionTag, Integer.toString(version));
         }
         if (clonePt != null) {
             node = node.addChild(CloneTag);
@@ -565,11 +574,27 @@ abstract class AbstractCurve implements Curve {
         }
         updateShapes();
 
+        if (node.hasAttribute(VersionTag)) {
+            try {
+                version = Integer.parseInt(node.getAttribute(VersionTag));
+            }
+            catch (NumberFormatException e) {
+                throw new XMLException("Invalid curve version", e);
+            }
+        }
+        else {
+            version = null;
+        }
+
         if (node.hasChild(CloneTag)) {
             clonePt = new ClonePoint();
             node = node.getChild(CloneTag);
             clonePt.restore(node);
         }
+    }
+
+    public Integer getVersion() {
+        return version;
     }
 
     // Derived Curves must override this method, to update "shape" and

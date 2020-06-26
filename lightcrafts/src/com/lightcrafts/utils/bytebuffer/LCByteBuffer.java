@@ -230,6 +230,7 @@ public abstract class LCByteBuffer {
      * @throws BufferUnderflowException if there are fewer than the number of
      * bytes in the given string remaining in the buffer starting at its
      * current position.
+     * @see #getEquals(int,String,String)
      * @see #getString(int,String)
      */
     public final boolean getEquals( String s, String charsetName )
@@ -239,10 +240,31 @@ public abstract class LCByteBuffer {
     }
 
     /**
-     * Gets a <code>float</code> at the buffer's current position and advances
-     * the position by 4.
+     * Gets a {@link String} that is the same length as the given string
+     * starting at the given position and comares the two strings for equality.
+     * The buffer's current position is not changed.
      *
-     * @return Returns said <code>float</code>.
+     * @param pos The position to get the {@link String} from.
+     * @param s The {@link String} to compare to.
+     * @param charsetName The name of a supported character set.
+     * @return Returns {@code true} only if the two strings are equal.
+     * @throws BufferUnderflowException if there are fewer than the number of
+     * bytes in the given string remaining in the buffer starting at its
+     * current position.
+     * @see #getEquals(String,String)
+     * @see #getString(int,int,String)
+     */
+    public final boolean getEquals( int pos, String s, String charsetName )
+        throws IOException
+    {
+        return s.equals( getString( pos, s.length(), charsetName ) );
+    }
+
+    /**
+     * Gets a {@code float} at the buffer's current position and advances the
+     * position by 4.
+     *
+     * @return Returns said {@code float}.
      * @throws BufferUnderflowException if there are fewer than 4 bytes
      * remaining in the buffer starting at its current position.
      * @see #getFloat(int)

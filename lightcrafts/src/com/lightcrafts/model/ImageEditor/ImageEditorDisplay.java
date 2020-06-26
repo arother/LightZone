@@ -1,108 +1,113 @@
 /* Copyright (C) 2005-2011 Fabio Riccardi */
+/* Copyright (C) 2016-     Masahiro Kitagawa */
 
 package com.lightcrafts.model.ImageEditor;
 
-import com.lightcrafts.model.EngineListener;
-import com.lightcrafts.model.Engine;
 import com.lightcrafts.jai.JAIContext;
 import com.lightcrafts.jai.utils.Functions;
+import com.lightcrafts.model.Engine;
+import com.lightcrafts.model.EngineListener;
+import com.lightcrafts.model.Scale;
+import com.lightcrafts.ui.LightZoneSkin;
+import com.lightcrafts.utils.awt.geom.HiDpi;
 import com.lightcrafts.utils.SoftValueHashMap;
+import lombok.*;
+import org.jetbrains.annotations.NotNull;
 
+import javax.media.jai.OpImage;
+import javax.media.jai.PlanarImage;
+import javax.media.jai.RenderedOp;
+import javax.media.jai.TileCache;
+import javax.swing.*;
 import java.awt.*;
-import java.awt.event.ActionListener;
 import java.awt.event.ActionEvent;
-import java.awt.event.ComponentListener;
+import java.awt.event.ActionListener;
 import java.awt.event.ComponentEvent;
+import java.awt.event.ComponentListener;
 import java.awt.geom.AffineTransform;
 import java.awt.image.*;
-import java.util.*;
-import java.util.List;
-import javax.swing.*;
-import javax.swing.Timer;
-
-import com.lightcrafts.mediax.jai.*;
-import com.lightcrafts.ui.LightZoneSkin;
+import java.util.Comparator;
+import java.util.LinkedList;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class ImageEditorDisplay extends JPanel {
-    private static final boolean ADVANCED_REPAINT = true;
-    private static final boolean ASYNCH_REPAINT = true;
+    private static final boolean DEBUG = false;
 
-    private PlanarImage source = null;
+    @Getter
+    private PlanarImage source;
 
     private int epoch = 0;
 
     private static TileManager tileManager = new TileManager();
 
+    @Setter
     private LinkedList<EngineListener> engineListeners = null;
 
+    @Setter
     private PaintListener paintListener = null;
 
-    private boolean synchronizedImage = false;
+    private boolean synchronizedImage;
 
     private LCTileHandler tileHandler = new LCTileHandler();
 
     private ProgressNotifyer progressNotifyer = new ProgressNotifyer();
 
+    @Setter(AccessLevel.PACKAGE)
     private RenderedImage backgroundImage;
 
-    SoftValueHashMap backgroundCache = null;
+    private SoftValueHashMap<CacheKey, BufferedImage> backgroundCache = null;
 
     // Workaround for unreliable ComponentListener.componentResized() callbacks.
-    LinkedList<ComponentListener> compListeners = new LinkedList<ComponentListener>();
+    private ConcurrentLinkedQueue<ComponentListener> compListeners =
+            new ConcurrentLinkedQueue<>();
+    private boolean shouldUseScaledTileCache = true;
 
+    @SuppressWarnings("deprecation")
+    @Override
     public void reshape(int x, int y, int w, int h) {
-        super.reshape(x, y, w, h);        
+        super.reshape(x, y, w, h);
 
         // COMPONENT_RESIZED events are not reliably forwarded to listeners,
         // so we do so manually.
-        ComponentEvent event = new ComponentEvent(
+        val event = new ComponentEvent(
             this, ComponentEvent.COMPONENT_RESIZED
         );
-        for (ComponentListener listener : compListeners) {
+        for (val listener : compListeners) {
             listener.componentResized(event);
         }
     }
 
+    @Override
     public void addComponentListener(ComponentListener listener) {
+        if (listener == null) {
+            return;
+        }
         compListeners.add(listener);
         super.addComponentListener(listener);
     }
 
+    @Override
     public void removeComponentListener(ComponentListener listener) {
+        if (listener == null) {
+            return;
+        }
         compListeners.remove(listener);
         super.removeComponentListener(listener);
     }
 
-    static class CacheKey {
+    @RequiredArgsConstructor
+    @EqualsAndHashCode
+    private static class CacheKey {
         final int tileX;
         final int tileY;
-
-        CacheKey(int _tileX, int _tileY) {
-            tileX = _tileX;
-            tileY = _tileY;
-        }
-
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (!(o instanceof CacheKey)) return false;
-
-            final CacheKey cacheKey = (CacheKey) o;
-
-            return tileX == cacheKey.tileX &&
-                   tileY == cacheKey.tileY;
-        }
-
-        public int hashCode() {
-            int result;
-            result = tileX;
-            result = 29 * result + tileY;
-            return result;
-        }
+        final Scale scale;
     }
 
     private boolean[][] validImageBackground = null;
 
-    Engine engine = null;
+    Engine engine;
 
     public ImageEditorDisplay(Engine engine, PlanarImage image) {
         super(null);
@@ -111,10 +116,10 @@ public class ImageEditorDisplay extends JPanel {
 
         source = image;
         if (source != null) {
-            backgroundCache = new SoftValueHashMap();
+            backgroundCache = new SoftValueHashMap<>();
             source.addTileComputationListener(tileManager);
             // Swing geometry
-            setPreferredSize(new Dimension(source.getWidth(), source.getHeight()));
+            setPreferredSize(HiDpi.userSpaceDimensionFrom(source));
         }
         setOpaque(true);
 
@@ -136,8 +141,6 @@ public class ImageEditorDisplay extends JPanel {
         tileHandler = null;
         progressNotifyer = null;
     }
-
-    RenderedImage lastPreview = null;
 
     public synchronized void set(PlanarImage image, boolean synchronous) {
         if (image == null)
@@ -161,45 +164,36 @@ public class ImageEditorDisplay extends JPanel {
 
         synchronizedImage = synchronous;
 
+        shouldUseScaledTileCache = true;
+
         if (oldImage == null || !oldImage.getBounds().equals(image.getBounds())) {
-            backgroundCache = new SoftValueHashMap();
+            if (backgroundCache == null) {
+                backgroundCache = new SoftValueHashMap<>();
+            }
 
             // Swing geometry
-            Dimension dim = new Dimension(source.getWidth(), source.getHeight());
-            setPreferredSize(dim);
+            setPreferredSize(HiDpi.userSpaceDimensionFrom(source));
+        }
+        else {
+           shouldUseScaledTileCache = false;
         }
         repaint();
     }
 
-    public void setEngineListeners(LinkedList<EngineListener> engineListeners) {
-        this.engineListeners = engineListeners;
-    }
-
-    public void setPaintListener(PaintListener listener) {
-        paintListener = listener;
-    }
-
-    public RenderedImage getSource() {
-        return source;
-    }
-
-    class LCTileHandler implements TileHandler {
+    private class LCTileHandler implements TileHandler {
+        @Override
         public void handle(int tileX, int tileY, PaintContext ctx) {
             EventQueue.invokeLater(new AsynchronousRepainter(tileX, tileY, ctx));
         }
     }
 
-    class AsynchronousRepainter implements Runnable {
-        private int tileX;
-        private int tileY;
-        private PaintContext ctx;
+    @RequiredArgsConstructor
+    private class AsynchronousRepainter implements Runnable {
+        private final int tileX;
+        private final int tileY;
+        private final PaintContext ctx;
 
-        AsynchronousRepainter(int tileX, int tileY, PaintContext ctx) {
-            this.tileX = tileX;
-            this.tileY = tileY;
-            this.ctx = ctx;
-        }
-
+        @Override
         public void run() {
             repaintTile(ctx, tileX, tileY);
         }
@@ -211,25 +205,28 @@ public class ImageEditorDisplay extends JPanel {
         the image while tiles are being painted/computed...
     */
 
-    synchronized void repaintTile(PaintContext ctx, int tileX, int tileY) {
-        if (!ctx.isCancelled() && ctx.getImage() == source) {
-            if (!ctx.isPrefetch()) {
-                PlanarImage currentSource = source;
-                boolean currentSynchronized = synchronizedImage;
-                source = ctx.getImage();
-                synchronizedImage = ctx.isSynchronous();
-                paintImmediately(tileX * source.getTileWidth(),
-                                 tileY * source.getTileHeight(),
-                                 source.getTileWidth(),
-                                 source.getTileHeight());
-                synchronizedImage = currentSynchronized;
-                source = currentSource;
-            } else
-                progressNotifyer.setTiles(tileManager.pendingTiles(source, epoch));
+    private synchronized void repaintTile(PaintContext ctx, int tileX, int tileY) {
+        if (ctx.isCancelled() || ctx.getImage() != source) {
+            return;
+        }
+
+        if (!ctx.isPrefetch()) {
+            PlanarImage currentSource = source;
+            boolean currentSynchronized = synchronizedImage;
+            source = ctx.getImage();
+            synchronizedImage = ctx.isSynchronous();
+            paintImmediately(tileX * source.getTileWidth(),
+                             tileY * source.getTileHeight(),
+                             source.getTileWidth(),
+                             source.getTileHeight());
+            synchronizedImage = currentSynchronized;
+            source = currentSource;
+        } else {
+            progressNotifyer.setTiles(tileManager.pendingTiles(source, epoch));
         }
     }
 
-    class ProgressNotifyer {
+    private class ProgressNotifyer {
         private int queuedTiles = 0;
 
         private void notifyListeners() {
@@ -245,14 +242,12 @@ public class ImageEditorDisplay extends JPanel {
         }
     }
 
-    static class TileComparator implements Comparator<Point> {
-        int x, y;
+    @RequiredArgsConstructor
+    private static class TileComparator implements Comparator<Point> {
+        final int x;
+        final int y;
 
-        TileComparator(int x, int y) {
-            this.x = x;
-            this.y = y;
-        }
-
+        @Override
         public int compare(Point t1, Point t2) {
             int dx1 = t1.x - x;
             int dy1 = t1.y - y;
@@ -267,37 +262,27 @@ public class ImageEditorDisplay extends JPanel {
         }
     }
 
-    private Raster[] availableTiles(Point[] tileIndices) {
-        OpImage ro;
+    private Raster[] availableTiles(Point... tileIndices) {
+        final OpImage ro;
         if (source instanceof OpImage) {
             ro = (OpImage) source;
         } else {
             PlanarImage rendering = ((RenderedOp) source).getCurrentRendering();
             ro = (OpImage) rendering;
         }
-        TileCache cache = (ro).getTileCache();
+        TileCache cache = ro.getTileCache();
         return cache.getTiles(ro, tileIndices);
     }
-
-    private static final Color backgroundColor = LightZoneSkin.Colors.EditorBackground;
-
-    // private static boolean windowsPlatform = Platform.getType() == Platform.Windows;
-
-    private static final AffineTransform identityTransform = new AffineTransform();
-
-    private long startGetTiles;
-
-    private boolean computingTiles = false;
 
     private static final ColorModel sRGBColorModel = new ComponentColorModel(
             JAIContext.sRGBColorSpace, false, false, Transparency.OPAQUE, DataBuffer.TYPE_BYTE);
 
-    BufferedImage getBackgroundTile(WritableRaster tile, int x, int y) {
-        CacheKey key = new CacheKey(x, y);
-        BufferedImage image = (BufferedImage) backgroundCache.get(key);
-        BufferedImage tileImage = new BufferedImage(sRGBColorModel,
-                                                    (WritableRaster) tile.createTranslatedChild(0, 0),
-                                                    false, null);
+    private BufferedImage getBackgroundTile(@NotNull WritableRaster tile, int x, int y) {
+        val key = new CacheKey(x, y, engine.getScale());
+        BufferedImage image = backgroundCache.get(key);
+        val tileImage = new BufferedImage(sRGBColorModel,
+                                         (WritableRaster) tile.createTranslatedChild(0, 0),
+                                         false, null);
         if (image != null
             && image.getWidth() == tile.getWidth()
             && image.getHeight() == tile.getHeight()) {
@@ -305,7 +290,7 @@ public class ImageEditorDisplay extends JPanel {
             big.drawRenderedImage(tileImage, new AffineTransform());
             big.dispose();
         } else {
-            image = (BufferedImage) Functions.toFastBufferedImage(tileImage);
+            image = Functions.toFastBufferedImage(tileImage);
             backgroundCache.put(key, image);
         }
         return image;
@@ -313,7 +298,8 @@ public class ImageEditorDisplay extends JPanel {
 
     private boolean firstTime;
 
-    final Timer paintTimer = new Timer(300, new ActionListener() {
+    private final Timer paintTimer = new Timer(300, new ActionListener() {
+        @Override
         public void actionPerformed(ActionEvent e) {
             firstTime = false;
             paintTimer.stop();
@@ -325,10 +311,15 @@ public class ImageEditorDisplay extends JPanel {
         firstTime = true;
     }
 
-    void setBackgroundImage(RenderedImage image) {
-        backgroundImage = image;
-    }
+    private long startGetTiles;
+    private boolean computingTiles = false;
 
+    private static final Color backgroundColor = LightZoneSkin.Colors.EditorBackground;
+    private static final AffineTransform identityTransform = new AffineTransform();
+    private static final boolean ADVANCED_REPAINT = true;
+    private static final boolean ASYNCH_REPAINT = true;
+
+    @Override
     public synchronized void paintComponent(Graphics g) {
         if (firstTime) {
             if (!paintTimer.isRunning())
@@ -336,159 +327,169 @@ public class ImageEditorDisplay extends JPanel {
             return;
         }
 
-        Graphics2D g2d = (Graphics2D)g;
+        val g2d = (Graphics2D)g;
+        g2d.setBackground(backgroundColor);
+        g2d.clearRect(0, 0, getWidth(), getHeight());
+
+        HiDpi.resetTransformScaleOf(g2d);
+
+        g2d.setBackground(backgroundColor);
+        g2d.clearRect(0, 0, getWidth(), getHeight());
 
         // empty component (no image)
-        if ( source == null ) {
-            g2d.setColor(backgroundColor);
-            g2d.fillRect(0, 0, getWidth(), getHeight());
+        if (source == null) {
             return;
         }
-        g2d.setColor(Color.blue);
-        g2d.fillRect(0, 0, getWidth(), getHeight());
 
-        Rectangle clipBounds = g2d.getClipBounds();
-
-        if (ADVANCED_REPAINT) {
-            Point[] tileIndices = source.getTileIndices(clipBounds);
-
-            if (tileIndices == null)
-                return;
-
-            if (ASYNCH_REPAINT) {
-                List<Point> dirtyTiles = new LinkedList<Point>();
-
-                Raster tiles[] = availableTiles(tileIndices);
-
-                for (int i = 0; i < tileIndices.length; i++) {
-                    Rectangle tileClipRect = new Rectangle(tileIndices[i].x * JAIContext.TILE_WIDTH,
-                        tileIndices[i].y * JAIContext.TILE_HEIGHT,
-                        JAIContext.TILE_WIDTH, JAIContext.TILE_HEIGHT);
-
-                    g2d.setClip(tileClipRect.intersection(clipBounds));
-
-                    if (validImageBackground[tileIndices[i].x][tileIndices[i].y] || tiles == null || tiles[i] == null) {
-                        if (!validImageBackground[tileIndices[i].x][tileIndices[i].y])
-                            dirtyTiles.add(tileIndices[i]);
-
-                        // if we don't have a fresh tile, try and see if we have an old one around
-                        BufferedImage backgroundTile;
-
-                        if ((backgroundTile = (BufferedImage) backgroundCache.get(new CacheKey(tileIndices[i].x, tileIndices[i].y))) != null) {
-                            int xOffset = source.tileXToX(tileIndices[i].x);
-                            int yOffset = source.tileYToY(tileIndices[i].y);
-
-                            try {
-                                g2d.drawImage(backgroundTile, null, xOffset, yOffset);
-
-                                // System.out.println("recycled background tile for: " + xOffset + ", " + yOffset);
-                            } catch (Exception e) {
-                                e.printStackTrace();
-                            }
-                        } else {
-                            Raster cachedTiles[] = availableTiles(new Point[] {new Point(tileIndices[i].x, tileIndices[i].y)});
-                            if (cachedTiles.length == 1 && cachedTiles[0] != null) {
-                                WritableRaster tile = (WritableRaster) cachedTiles[0];
-                                BufferedImage image = getBackgroundTile(tile, tileIndices[i].x, tileIndices[i].y);
-                                g2d.drawImage(image, null, tile.getMinX(), tile.getMinY());
-                            } else {
-                                if (backgroundImage != null) {
-                                    g2d.drawRenderedImage(
-                                        backgroundImage, new AffineTransform()
-                                    );
-                                }
-                                else {
-                                    // if all fails paint the default background color
-                                    g2d.setColor(backgroundColor);
-                                    g2d.fillRect(tileClipRect.x,
-                                        tileClipRect.y,
-                                        tileClipRect.width,
-                                        tileClipRect.height);
-                                }
-                            }
-                        }
-                    } else {
-                        try {
-                            WritableRaster tile = (WritableRaster) tiles[i];
-                            BufferedImage image = getBackgroundTile(tile, tileIndices[i].x, tileIndices[i].y);
-                            g2d.drawImage(image, null, tile.getMinX(), tile.getMinY());
-                            validImageBackground[tileIndices[i].x][tileIndices[i].y] = true;
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                        }
-                    }
-                }
-                g2d.setClip(clipBounds); // reset the clip rect
-
-                if (!dirtyTiles.isEmpty()) {
-                    startGetTiles = System.currentTimeMillis();
-
-                    Collections.sort(dirtyTiles,
-                                     new TileComparator((clipBounds.x + clipBounds.width / 2) / source.getTileWidth(),
-                                                        (clipBounds.y + clipBounds.height / 2) / source.getTileHeight()));
-
-                    computingTiles = true;
-                    tileManager.queueTiles(source, epoch, dirtyTiles, synchronizedImage, false, tileHandler);
-
-                    /* Area area = new Area();
-
-                    for (Point tile : dirtyTiles) {
-                        area.add(new Area(new Rectangle(tile.x * source.getTileWidth(),
-                                                        tile.y * source.getTileHeight(),
-                                                        source.getTileWidth(),
-                                                        source.getTileHeight())));
-                    }
-                    // System.out.println("Dirty area: " + area.getBounds());
-                    engine.prefetchRendering(area.getBounds()); */
-                } else {
-                    if (tileManager.pendingTiles(source, epoch) == 0) {
-                        long endGetTiles = System.currentTimeMillis();
-
-                        if (paintListener != null) {
-                            if (computingTiles) {
-                                if (synchronizedImage) {
-                                    if (startGetTiles > 0)
-                                        paintListener.paintDone(source, getVisibleRect(), synchronizedImage, endGetTiles - startGetTiles);
-                                } else
-                                    paintListener.paintDone(source, getVisibleRect(), synchronizedImage, 0);
-                            } else
-                                paintListener.paintDone(source, getVisibleRect(), synchronizedImage, 0);
-                        }
-                        startGetTiles = -1;
-                        computingTiles = false;
-
-                        if (false && !synchronizedImage) {
-                            tileIndices = source.getTileIndices(source.getBounds());
-                            tiles = availableTiles(tileIndices);
-
-                            if (tileIndices != null) {
-                                dirtyTiles = new LinkedList<Point>();
-
-                                for (int i = 0; i < tileIndices.length; i++)
-                                    if (tiles[i] == null)
-                                        dirtyTiles.add(tileIndices[i]);
-
-                                if (!dirtyTiles.isEmpty()) {
-                                    Collections.sort(dirtyTiles,
-                                                     new TileComparator((clipBounds.x + clipBounds.width / 2) / JAIContext.TILE_WIDTH,
-                                                                        (clipBounds.y + clipBounds.height / 2) / JAIContext.TILE_HEIGHT));
-
-                                    tileManager.queueTiles(source, epoch, dirtyTiles, false, true, tileHandler);
-                                }
-                            }
-                        }
-                    }
-                }
-                progressNotifyer.setTiles(tileManager.pendingTiles(source, epoch));
-            } else {
-                // fetching tiles explicitly allows to schedule them on separate threads,
-                // this is good if we have multiple CPUs
-                source.getTiles(tileIndices); // this blocks until the tiles are all available
-
-                g2d.drawRenderedImage(source, identityTransform);
-            }
-        } else {
+        if (!ADVANCED_REPAINT) {
+            progressNotifyer.setTiles(1);
             g2d.drawRenderedImage(source, identityTransform);
+            progressNotifyer.setTiles(0);
+            return;
+        }
+
+        val tileIndices = source.getTileIndices(g2d.getClipBounds());
+        if (tileIndices == null) {
+            return;
+        }
+
+        if (ASYNCH_REPAINT) {
+            asyncRepaint(g2d, tileIndices);
+            progressNotifyer.setTiles(tileManager.pendingTiles(source, epoch));
+        } else {
+            // fetching tiles explicitly allows to schedule them on separate threads,
+            // this is good if we have multiple CPUs
+            progressNotifyer.setTiles(1);
+            source.getTiles(tileIndices); // this blocks until the tiles are all available
+            g2d.drawRenderedImage(source, identityTransform);
+            progressNotifyer.setTiles(0);
+        }
+    }
+
+    private void asyncRepaint(Graphics2D g2d, Point[] tileIndices) {
+        val originalClipBounds = g2d.getClipBounds();
+        val tiles = availableTiles(tileIndices);
+
+        for (int i = 0; i < tileIndices.length; i++) {
+            val tileIndex = tileIndices[i];
+            val tile = (tiles == null) ? null : (WritableRaster) tiles[i];
+
+            val tileClipRect = new Rectangle(
+                    tileIndex.x * JAIContext.TILE_WIDTH, tileIndex.y * JAIContext.TILE_HEIGHT,
+                    JAIContext.TILE_WIDTH, JAIContext.TILE_HEIGHT);
+            g2d.setClip(tileClipRect.intersection(originalClipBounds));
+
+            drawBackgroundTile(g2d, tileIndex, tileClipRect, tile);
+        }
+        g2d.setClip(originalClipBounds); // reset the clip rect
+
+        updateTileComputingStatus(tileIndices, originalClipBounds);
+    }
+
+    private void drawBackgroundTile(Graphics2D g2d, Point tileIndex, Rectangle tileClipRect,
+                                    WritableRaster tile) {
+        val tx = tileIndex.x;
+        val ty = tileIndex.y;
+
+        if (!validImageBackground[tx][ty] && tile != null) {
+            validImageBackground[tx][ty] = true;
+            g2d.drawImage(getBackgroundTile(tile, tx, ty), null, tile.getMinX(), tile.getMinY());
+            return;
+        }
+
+        // if we don't have a fresh tile, try and see if we have an old one around
+        val backgroundTileCache = backgroundCache.get(new CacheKey(tx, ty, engine.getScale()));
+        if (backgroundTileCache != null) {
+            // Recycle the background tile
+            g2d.drawImage(backgroundTileCache, null, source.tileXToX(tx), source.tileYToY(ty));
+            return;
+        }
+
+        // Reuse tile of different zoom level
+        if (shouldUseScaledTileCache
+                && drawScaledTileCache(g2d, tx, ty, tileClipRect.width, tileClipRect.height)) {
+            return;
+        }
+
+        val cachedTiles = availableTiles(new Point(tx, ty));
+        if (cachedTiles.length == 1 && cachedTiles[0] != null) {
+            val cachedTile = (WritableRaster) cachedTiles[0];
+            g2d.drawImage(getBackgroundTile(cachedTile, tx, ty), null,
+                    cachedTile.getMinX(), cachedTile.getMinY());
+            return;
+        }
+
+        if (backgroundImage instanceof BufferedImage) {
+            g2d.drawImage((BufferedImage) backgroundImage, null, tileClipRect.x, tileClipRect.y);
+            return;
+        }
+
+        // If all fails paint the default background color
+        g2d.setColor(backgroundColor);
+        g2d.fillRect(tileClipRect.x, tileClipRect.y, tileClipRect.width, tileClipRect.height);
+    }
+
+    private boolean drawScaledTileCache(Graphics2D g2d, int tx, int ty,
+                                        int tileWidth, int tileHeight) {
+        val scale = engine.getScale();
+
+        // Check if we are not already at minimum zoom level
+        val scaleList = engine.getPreferredScales();
+        val smallerScale = (scaleList.subList(1, scaleList.size()).contains(scale))
+                ? scaleList.get(scaleList.indexOf(scale) - 1) : null;
+        if (smallerScale == null) {
+            return false;
+        }
+
+        val magnitude = scale.getFactor() / smallerScale.getFactor();
+        val smallerTileIndexX = (int) (tx / magnitude);
+        val smallerTileIndexY = (int) (ty / magnitude);
+        val smallerTileCache = backgroundCache.get(
+                new CacheKey(smallerTileIndexX, smallerTileIndexY, smallerScale));
+        if (smallerTileCache == null) {
+            return false;
+        }
+
+        // Scale tile size and offsets
+        val ox = source.tileXToX(tx);
+        val oy = source.tileYToY(ty);
+        val offX = (int) ((tx % magnitude) * tileWidth / magnitude);
+        val offY = (int) ((ty % magnitude) * tileHeight / magnitude);
+        g2d.drawImage(smallerTileCache,
+                ox, oy, ox + tileWidth, oy + tileHeight,
+                offX, offY,
+                offX + (int) (tileWidth / magnitude),
+                offY + (int) (tileHeight / magnitude), null);
+        if (DEBUG) {
+            g2d.setColor(Color.red);
+            g2d.drawRect(ox, oy, tileWidth - 1, tileHeight - 1);
+        }
+
+        return true;
+    }
+
+    private void updateTileComputingStatus(Point[] tileIndices, Rectangle clipBounds) {
+        val tileComparator = new TileComparator(
+                (clipBounds.x + clipBounds.width / 2) / source.getTileWidth(),
+                (clipBounds.y + clipBounds.height / 2) / source.getTileHeight());
+        val dirtyTiles = Stream.of(tileIndices)
+                .filter(tileIndex -> !validImageBackground[tileIndex.x][tileIndex.y])
+                .sorted(tileComparator)
+                .collect(Collectors.toList());
+        if (!dirtyTiles.isEmpty()) {
+            startGetTiles = System.currentTimeMillis();
+            computingTiles = true;
+            tileManager.queueTiles(source, epoch, dirtyTiles, synchronizedImage, false, tileHandler);
+        } else if (tileManager.pendingTiles(source, epoch) == 0) {
+            if (paintListener != null) {
+                val endGetTiles = System.currentTimeMillis();
+                val time = (computingTiles && synchronizedImage && startGetTiles > 0)
+                        ? endGetTiles - startGetTiles
+                        : 0;
+                paintListener.paintDone(source, HiDpi.imageSpaceRectFrom(getVisibleRect()), synchronizedImage, time);
+            }
+            startGetTiles = -1;
+            computingTiles = false;
         }
     }
 }

@@ -2,26 +2,30 @@
 
 package com.lightcrafts.model.ImageEditor;
 
+import com.lightcrafts.image.color.ColorScience;
+import com.lightcrafts.jai.JAIContext;
+import com.lightcrafts.jai.utils.Functions;
+import com.lightcrafts.jai.utils.Transform;
 import com.lightcrafts.model.OperationType;
 import com.lightcrafts.model.SliderConfig;
-import com.lightcrafts.jai.utils.Transform;
-import com.lightcrafts.jai.utils.Functions;
-import com.lightcrafts.jai.JAIContext;
 
-import com.lightcrafts.mediax.jai.*;
-import com.lightcrafts.utils.ColorScience;
-
-import java.awt.image.renderable.ParameterBlock;
+import javax.media.jai.BorderExtender;
+import javax.media.jai.JAI;
+import javax.media.jai.PlanarImage;
+import javax.media.jai.RenderedOp;
 import java.awt.*;
+import java.awt.image.renderable.ParameterBlock;
 import java.text.DecimalFormat;
 
+import static com.lightcrafts.ui.help.HelpConstants.HELP_TOOL_NOISE_REDUCTION;
+
 public class AdvancedNoiseReductionOperation extends BlendedOperation {
-    static final String COLOR_RADIUS = "Color_Radius";
-    static final String COLOR_INTENSITY = "Color_Intensity";
-    static final String GRAIN_RADIUS = "Grain_Radius";
-    static final String GRAIN_INTENSITY = "Grain_Intensity";
-    static final String COLOR_NOISE = "Color_Noise";
-    static final String GRAIN_NOISE = "Grain_Noise";
+    private static final String COLOR_RADIUS = "Color_Radius";
+    private static final String COLOR_INTENSITY = "Color_Intensity";
+    private static final String GRAIN_RADIUS = "Grain_Radius";
+    private static final String GRAIN_INTENSITY = "Grain_Intensity";
+    private static final String COLOR_NOISE = "Color_Noise";
+    private static final String GRAIN_NOISE = "Grain_Noise";
     static final OperationType typeV1 = new OperationTypeImpl("Advanced Noise Reduction");
     static final OperationType typeV2 = new OperationTypeImpl("Advanced Noise Reduction V2");
     static final OperationType typeV3 = new OperationTypeImpl("Advanced Noise Reduction V3");
@@ -33,6 +37,8 @@ public class AdvancedNoiseReductionOperation extends BlendedOperation {
     public AdvancedNoiseReductionOperation(Rendering rendering, OperationType type) {
         super(rendering, type);
         colorInputOnly = true;
+
+        setHelpTopic(HELP_TOOL_NOISE_REDUCTION);
 
         DecimalFormat format = new DecimalFormat("0.0");
 
@@ -59,26 +65,28 @@ public class AdvancedNoiseReductionOperation extends BlendedOperation {
         }
     }
 
+    @Override
     public boolean neutralDefault() {
         return false;
     }
 
+    @Override
     public void setSliderValue(String key, double value) {
         value = roundValue(key, value);
 
-        if (key == COLOR_NOISE && chroma_domain != value) {
+        if (key.equals(COLOR_NOISE) && chroma_domain != value) {
             chroma_domain = (float) value;
             chroma_range = (float) (2 * value);
-        } else if (key == GRAIN_NOISE && luma_range != value) {
+        } else if (key.equals(GRAIN_NOISE) && luma_range != value) {
             luma_range = (float) value;
             luma_domain = (float) (value / 2);
-        } else if (key == COLOR_RADIUS && chroma_domain != value) {
+        } else if (key.equals(COLOR_RADIUS) && chroma_domain != value) {
             chroma_domain = (float) value;
-        } else if (key == COLOR_INTENSITY && chroma_range != value) {
+        } else if (key.equals(COLOR_INTENSITY) && chroma_range != value) {
             chroma_range = (float) value;
-        } else if (key == GRAIN_RADIUS && luma_domain != value) {
+        } else if (key.equals(GRAIN_RADIUS) && luma_domain != value) {
             luma_domain = (float) value;
-        } else if (key == GRAIN_INTENSITY && luma_range != value) {
+        } else if (key.equals(GRAIN_INTENSITY) && luma_range != value) {
             luma_range = (float) value;
         } else
             return;
@@ -91,13 +99,10 @@ public class AdvancedNoiseReductionOperation extends BlendedOperation {
             super(source);
         }
 
-        RenderedOp denoiser;
-
+        @Override
         public PlanarImage setFront() {
             if (chroma_domain == 0 && chroma_range == 0 && luma_domain == 0 && luma_range == 0)
                 return back;
-
-            PlanarImage front = back;
 
             ColorScience.LinearTransform transform = new ColorScience.YST();
 
@@ -149,21 +154,24 @@ public class AdvancedNoiseReductionOperation extends BlendedOperation {
             pb = new ParameterBlock();
             pb.addSource( ystImage );
             pb.add( yst2rgb );
-            front = JAI.create("BandCombine", pb, null);
+            PlanarImage front = JAI.create("BandCombine", pb, null);
             front.setProperty(JAIContext.PERSISTENT_CACHE_TAG, Boolean.TRUE);
 
             return front;
         }
     }
 
+    @Override
     protected void updateOp(Transform op) {
         op.update();
     }
 
+    @Override
     protected BlendedTransform createBlendedOp(PlanarImage source) {
         return new NoiseReduction(source);
     }
 
+    @Override
     public OperationType getType() {
         return type;
     }

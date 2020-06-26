@@ -1,9 +1,9 @@
 /* Copyright (C) 2005-2011 Fabio Riccardi */
+/* Copyright (C) 2013-     Masahiro Kitagawa */
 
 package com.lightcrafts.platform.linux;
 
 import static com.lightcrafts.platform.linux.Locale.LOCALE;
-import com.lightcrafts.platform.Platform;
 import com.lightcrafts.ui.toolkit.TextAreaFactory;
 import com.lightcrafts.utils.WebBrowser;
 
@@ -11,44 +11,74 @@ import javax.swing.*;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.BufferedReader;
-import java.io.FileInputStream;
+import java.io.InputStream;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 class TestSSE2 {
     
+    private static String osname = System.getProperty("os.name");
+
     static boolean hasSSE2() {
-        String line = getCpuInfoLine("flags\t\t:");
-        return line.contains("sse2");
+        String regex;
+        if (osname.contains("Linux")) {
+            regex = "^flags\t\t:.*sse2";
+        } else if (osname.contains("SunOS")) {
+            regex = "^\t.*sse2";
+        } else if (osname.contains("FreeBSD")) {
+            regex = "^hw.instruction_sse: 1";
+        } else {
+            regex = "^  Features=.*SSE2";
+        }
+        return (getCpuInfoLine(regex) != null);
     }
 
-    private static String getCpuInfoLine(String key) {
+    private static String getCpuInfoLine(String regex) {
+        String line = null;
+        String[] cmd;
+        if (osname.contains("Linux")) {
+            cmd = new String[] {"cat", "/proc/cpuinfo"};
+        } else if (osname.contains("SunOS")) {
+            cmd = new String[] {"sh", "-c", "isainfo -nv ; psrinfo -pv"};
+        } else if (osname.contains("FreeBSD")) {
+            cmd = new String[] {"sysctl", "hw"};
+        } else {
+            cmd = new String[] {"dmesg"};
+        }
+
         try {
-            BufferedReader reader = new BufferedReader(
-                new InputStreamReader(
-                    new FileInputStream("/proc/cpuinfo")
-                )
-            );
-            String line = null;
-            do {
-                line = reader.readLine();
-                if (line != null) {
-                    if (line.startsWith(key)) {
-                        return line;
-                    }
+            Process process = Runtime.getRuntime().exec(cmd);
+            try (InputStream in = process.getInputStream();
+                 BufferedReader reader = new BufferedReader(new InputStreamReader(in))) {
+                while ((line = reader.readLine()) != null) {
+                    if (Pattern.compile(regex).matcher(line).find())
+                        break;
                 }
-            } while (line != null);
+            }
         }
         catch (IOException e) {
             e.printStackTrace();
         }
-        return null;
+        return line;
     }
 
     static void showDialog() {
-        String model = getCpuInfoLine("model name\t: ");
-        model = model.replaceFirst("model name\t: ", "");
+        String regex;
+        if (osname.contains("Linux")) {
+            regex = getCpuInfoLine("^model name\t: ");
+        } else if (osname.contains("SunOS")) {
+            regex = getCpuInfoLine("^\t");
+        } else if (osname.contains("FreeBSD")) {
+            regex = getCpuInfoLine("^hw.model: ");
+        } else {
+            regex = getCpuInfoLine("^CPU: ");
+        }
+        String model = getCpuInfoLine(regex);
+        if (model != null)
+            model = model.replaceFirst(Matcher.quoteReplacement(regex), "");
 
         String messageA = LOCALE.get("CantRunSSE2Title");
         String messageB = LOCALE.get("CantRunSSE2");
@@ -60,7 +90,7 @@ class TestSSE2 {
         title.setFont(title.getFont().deriveFont(22f));
         title.setAlignmentX(.5f);
 
-        StringBuffer buffer = new StringBuffer();
+        StringBuilder buffer = new StringBuilder();
         buffer.append(messageB);
         buffer.append("\n\n");
         buffer.append(messageC);

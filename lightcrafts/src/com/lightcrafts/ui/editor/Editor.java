@@ -1,10 +1,12 @@
 /* Copyright (C) 2005-2011 Fabio Riccardi */
+/* Copyright (C) 2015 Masahiro Kitagawa */
 
 package com.lightcrafts.ui.editor;
 
 import com.lightcrafts.model.Engine;
 import com.lightcrafts.model.OperationType;
 import com.lightcrafts.model.Preview;
+import com.lightcrafts.model.Scale;
 import com.lightcrafts.ui.ActivityMeter;
 import com.lightcrafts.ui.LightZoneSkin;
 import com.lightcrafts.ui.crop.CropMode;
@@ -18,6 +20,7 @@ import com.lightcrafts.ui.scroll.CenteringScrollPane;
 import com.lightcrafts.ui.scroll.PannerOverlay;
 import com.lightcrafts.ui.scroll.ScrollMode;
 import com.lightcrafts.ui.toolkit.BoxedButton;
+import com.lightcrafts.utils.awt.geom.HiDpi;
 import com.lightcrafts.utils.xml.XMLException;
 import com.lightcrafts.utils.xml.XmlNode;
 
@@ -48,6 +51,7 @@ import java.util.List;
 public class Editor {
 
     private Engine engine;
+    private ScaleModel scale;
 
     // Modes are managed here:
     private RegionManager regions;
@@ -137,6 +141,21 @@ public class Editor {
             modes.setEditorMode( mode );
     }
 
+    void setScaleToFit() {
+        final Rectangle rect = HiDpi.imageSpaceRectFrom(getMaxImageBounds());
+
+        // Sometimes during frame initialization, the max image bounds
+        // is reported as zero.  Perhaps some layout glitch involving
+        // scroll pane interaction?
+        if (rect.width > 0 && rect.height > 0) {
+            final Scale oldScale = scale.getCurrentScale();
+            final Scale newScale = engine.setScale(rect);
+            if (! scale.setScale(newScale)) {
+                engine.setScale(oldScale);
+            }
+        }
+    }
+
     private static class MiniScrollMode extends AbstractMode {
         private JPanel overlay;     // just something to setCursor() on
 
@@ -162,18 +181,21 @@ public class Editor {
     class PanningMouseWheelListener implements MouseWheelListener {
         public void mouseWheelMoved(MouseWheelEvent e) {
             if (imageScroll.isWheelScrollingEnabled() && e.getScrollAmount() != 0) {
-                JScrollBar toScroll = e.getScrollType() < 2
-                                      ? imageScroll.getVerticalScrollBar()
-                                      : imageScroll.getHorizontalScrollBar();
                 int direction = e.getWheelRotation() < 0 ? -1 : 1;
-                if (e.getScrollType() == MouseWheelEvent.WHEEL_UNIT_SCROLL) {
-                    scrollByUnits(toScroll, direction, e.getScrollAmount());
-                } else if (e.getScrollType() ==
-                           MouseWheelEvent.WHEEL_BLOCK_SCROLL) {
-                    scrollByBlock(toScroll, direction);
+                if (overlay.peekMode() == transientPanMode) {
+                    scale.scaleUpDown(-direction);
                 } else {
-                    direction = e.getWheelRotation() < 0 ? 1 : -1;
-                    scrollByUnits(toScroll, direction, Math.abs(e.getWheelRotation()));
+                    JScrollBar toScroll = (e.getScrollType() < 2 && ! e.isShiftDown())
+                                          ? imageScroll.getVerticalScrollBar()
+                                          : imageScroll.getHorizontalScrollBar();
+                    if (e.getScrollType() == MouseWheelEvent.WHEEL_UNIT_SCROLL) {
+                        scrollByUnits(toScroll, direction, e.getScrollAmount());
+                    } else if (e.getScrollType() ==
+                               MouseWheelEvent.WHEEL_BLOCK_SCROLL) {
+                        scrollByBlock(toScroll, direction);
+                    } else {
+                        scrollByUnits(toScroll, -direction, Math.abs(e.getWheelRotation()));
+                    }
                 }
             }
         }
@@ -188,6 +210,7 @@ public class Editor {
         Document doc                // for zoom-to-fit
     ) {
         this.engine = engine;
+        this.scale = scale;
         this.regions = regions;
         this.crop = crop;
 
@@ -242,8 +265,8 @@ public class Editor {
                     opControls.setDropper(null);
                 }
                 private void updateDropper(MouseEvent e) {
-                    Point p = e.getPoint();
-                    Point q = new Point();
+                    final Point p = HiDpi.imageSpacePointFrom(e.getPoint());
+                    final Point q = new Point();
                     AffineTransform xform = modes.getOverlayTransform();
                     try {
                         xform.inverseTransform(p, q);
@@ -281,8 +304,8 @@ public class Editor {
         // Orientation buttons:
         final Action leftAction = crop.getLeftAction();
         final Action rightAction = crop.getRightAction();
-        RotateButtons rotors = new RotateButtons(leftAction, rightAction);
-        ToggleTitleBorder.setBorder(rotors, LOCALE.get("RotateBorderTitle"));
+        BoxedButton rotors = new BoxedButton(LOCALE.get("RotateBorderTitle"),
+                new RotateButtons(leftAction, rightAction));
 
         // Stuff some Mode controls into a SelectableControl in EditorControls:
         ProofSelectableControl proofOp = new ProofSelectableControl(engine);
@@ -316,24 +339,28 @@ public class Editor {
         zoomBox.add(largerButton);
         zoomBox.add(smallerButton);
         ToggleTitleBorder.setBorder(zoomBox, LOCALE.get("ZoomBorderTitle"));
-
+        /*
+        BoxedButton zoom = new BoxedButton(LOCALE.get("ZoomBorderTitle"),
+                oneToOneButton, fitButton, largerButton, smallerButton);
+         */
         ModeButtons modeBox = new ModeButtons(modes);
         modes.setModeButtons(modeBox);
 
+        final int space = 8;
         toolbar = Box.createHorizontalBox();
-        toolbar.add(Box.createHorizontalStrut(8));
+        toolbar.add(Box.createHorizontalStrut(space));
         toolbar.add(eyeButton.box);
-        toolbar.add(Box.createHorizontalStrut(8));
+        toolbar.add(Box.createHorizontalStrut(space));
         toolbar.add(proofButton.box);
-        toolbar.add(Box.createHorizontalStrut(8));
-        toolbar.add(rotors);
-        toolbar.add(Box.createHorizontalStrut(8));
+        toolbar.add(Box.createHorizontalStrut(space));
+        toolbar.add(rotors.box);
+        toolbar.add(Box.createHorizontalStrut(space));
         toolbar.add(zoomBox);
-        toolbar.add(Box.createHorizontalStrut(8));
+        toolbar.add(Box.createHorizontalStrut(space));
         toolbar.add(new Separator());
-        toolbar.add(Box.createHorizontalStrut(8));
+        toolbar.add(Box.createHorizontalStrut(space));
         toolbar.add(modeBox);
-        toolbar.add(Box.createHorizontalStrut(8));
+        toolbar.add(Box.createHorizontalStrut(space));
 
         // Add space above and below, to tune the layout:
         Border border = BorderFactory.createEmptyBorder(3, 0, 3, 0);
@@ -374,19 +401,10 @@ public class Editor {
         showHideAction.actionPerformed(null);
         showHideAction.setEnabled(false);
 
-        final RotateButtons rotors = new RotateButtons();
-        ToggleTitleBorder.setBorder(rotors, LOCALE.get("RotateBorderTitle"));
+        BoxedButton rotors = new BoxedButton(LOCALE.get("RotateBorderTitle"),    new RotateButtons());
+        BoxedButton proof  = new BoxedButton(LOCALE.get("SoftProofBorderTitle"), new ProofButton());
+        BoxedButton eye    = new BoxedButton(LOCALE.get("EyeBorderTitle"),       new EyeButton());
 
-        final ProofButton proofButton = new ProofButton();
-        final JComponent eyeButton = new EyeButton();
-
-        // Lots of titles:
-        ToggleTitleBorder.setBorder(
-            proofButton, LOCALE.get("SoftProofBorderTitle")
-        );
-        ToggleTitleBorder.setBorder(
-            eyeButton, LOCALE.get("EyeBorderTitle")
-        );
         final JComponent oneToOneButton = new OneToOneButton();
         final JComponent fitButton = new FitButton();
         final JComponent largerButton = new LargerButton();
@@ -398,26 +416,29 @@ public class Editor {
         zoomBox.add(largerButton);
         zoomBox.add(smallerButton);
         ToggleTitleBorder.setBorder(zoomBox, LOCALE.get("ZoomBorderTitle"));
+        /*
+        BoxedButton zoom   = new BoxedButton(LOCALE.get("ZoomBorderTitle"),
+                oneToOneButton, fitButton, largerButton, smallerButton);
+         */
+        BoxedButton mode   = new BoxedButton(LOCALE.get("ModeBorderTitle"), new ModeButtons());
 
-        final ModeButtons modeBox = new ModeButtons();
-        ToggleTitleBorder.setBorder(modeBox, LOCALE.get("ModeBorderTitle"));
-
+        final int space = 8;
         toolbar = Box.createHorizontalBox();
         toolbar.add(Box.createHorizontalGlue());
-        toolbar.add(Box.createHorizontalStrut(8));
+        toolbar.add(Box.createHorizontalStrut(space));
         toolbar.add(zoomBox);
-        toolbar.add(Box.createHorizontalStrut(8));
-        toolbar.add(proofButton);
-        toolbar.add(Box.createHorizontalStrut(8));
-        toolbar.add(eyeButton);
-        toolbar.add(Box.createHorizontalStrut(8));
-        toolbar.add(rotors);
+        toolbar.add(Box.createHorizontalStrut(space));
+        toolbar.add(proof.box);
+        toolbar.add(Box.createHorizontalStrut(space));
+        toolbar.add(eye.box);
+        toolbar.add(Box.createHorizontalStrut(space));
+        toolbar.add(rotors.box);
         toolbar.add(new Separator());
-        toolbar.add(Box.createHorizontalStrut(8));
-        toolbar.add(modeBox);
-        toolbar.add(Box.createHorizontalStrut(8));
+        toolbar.add(Box.createHorizontalStrut(space));
+        toolbar.add(mode.box);
+        toolbar.add(Box.createHorizontalStrut(space));
         toolbar.add(new Separator());
-        toolbar.add(Box.createHorizontalStrut(8));
+        toolbar.add(Box.createHorizontalStrut(space));
         toolbar.add(Box.createHorizontalGlue());
 
         // Add space above and below, to tune the Mac layout:

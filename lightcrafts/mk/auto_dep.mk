@@ -6,6 +6,10 @@
 
 AUTO_DEP_FLAGS:=	-MM -DAUTO_DEP $(DEFINES)
 
+ifeq ($(PLATFORM),MacOSX)
+  AUTO_DEP_FLAGS+=	-D_DARWIN_C_SOURCE -D__DARWIN_C_LEVEL=199506L
+endif
+
 ifeq ($(UNIVERSAL),1)
   ##
   # We need to use an architecture-specific INCLUDES, but since dependencies
@@ -40,15 +44,17 @@ ifeq ($(findstring MacOSX10.2.8,$(AUTO_DEP_FLAGS)),MacOSX10.2.8)
   ##
   AUTO_DEP_CC:=		gcc-3.3
 else
-  AUTO_DEP_CC:=		gcc
+  AUTO_DEP_CC:=		$(CC)
 endif
 
 MAKEDEPEND:=		$(AUTO_DEP_CC) $(AUTO_DEP_FLAGS)
 
 # Must not use := here!
-define MAKE_DEP
-  $(MAKEDEPEND) $1 | sed "s!^\([^ :]*\):!\1 $2 : !" | sed 's/\(\w\):/\/cygdrive\/\L\1/g' > $2; [ -s $2 ]  || $(RM) $2
-endef
+ifeq ($(CYGWIN),1)
+  define MAKE_DEP
+    $(MAKEDEPEND) $1 | sed "s!^\([^ :]*\):!\1 $2 : !" | sed 's/\(\w\):/\/cygdrive\/\L\1/g' > $2; [ -s $2 ]  || $(RM) $2
+  endef
+endif
 
 .%.d : %.c
 	$(call MAKE_DEP,$<,$@)

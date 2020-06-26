@@ -5,7 +5,7 @@ package com.lightcrafts.image.types;
 import com.lightcrafts.image.metadata.TIFFTags;
 
 /**
- * A <code>TIFFConstants</code> defines some constants for TIFF metadata.
+ * A {@code TIFFConstants} defines some constants for TIFF metadata.
  *
  * @author Paul J. Lucas [paul@lightcrafts.com]
  */
@@ -127,7 +127,18 @@ public interface TIFFConstants {
         4,  // 11: FLOAT
         8,  // 12: DOUBLE
         4,  // 13: IFD
+        2,  // 14: UNICODE
+        8,  // 15: COMPLEX
+        8,  // 16: UINT64
+        8,  // 17: SINT64
+        8,  // 18: IFD64
     };
+
+    /**
+     * TIFF date.  This type isn't defined in the TIFF specification.  We
+     * define it to distinguish dates from ordinary strings.
+     */
+    byte TIFF_FIELD_TYPE_DATE       = -1;
 
     /**
      * TIFF unsigned byte (8 bits).
@@ -146,7 +157,7 @@ public interface TIFFConstants {
 
     /**
      * TIFF unsigned long (32 bits).
-     * Note that this is not the same size as a Java <code>long</code>.
+     * Note that this is not the same size as a Java {@code long}.
      */
     byte TIFF_FIELD_TYPE_ULONG     = 4;
 
@@ -172,7 +183,7 @@ public interface TIFFConstants {
 
     /**
      * TIFF signed long (32 bits).
-     * Note that this is not the same size as a Java <code>long</code>.
+     * Note that this is not the same size as a Java {@code long}.
      */
     byte TIFF_FIELD_TYPE_SLONG     = 9;
 
@@ -192,9 +203,85 @@ public interface TIFFConstants {
     byte TIFF_FIELD_TYPE_DOUBLE    = 12;
 
     /**
-     * TIFF IFD pointer (32 bits).
+     * TIFF IFD (Image File Directory) pointer (32 bits).
      */
     byte TIFF_FIELD_TYPE_IFD       = 13;
+
+    /**
+     * TIFF UNICODE
+     */
+    byte TIFF_FIELD_TYPE_UNICODE   = 14;
+
+    /**
+     * TIFF COMPLEX
+     */
+    byte TIFF_FIELD_TYPE_COMPLEX   = 15;
+
+    /**
+     * BigTIFF unsigned long long (64 bits).
+     * Note that this is the same size as a Java <code>long</code>.
+     */
+    byte TIFF_FIELD_TYPE_UINT64    = 16;
+
+    /**
+     * BigTIFF signed long long (64 bits).
+     * Note that this is the same size as a Java <code>long</code>.
+     */
+    byte TIFF_FIELD_TYPE_SINT64    = 17;
+
+    /**
+     * BigTIFF IFD pointer (64 bits).
+     */
+    byte TIFF_FIELD_TYPE_IFD64     = 18;
+
+    /**
+     * TIFF flash: flash fired.
+     * This is used with the {@link TIFFTags#TIFF_FLASH} metadata tag.
+     */
+    int TIFF_FLASH_FIRED_BIT = 0;
+
+    /**
+     * TIFF flash mode: auto.
+     * This is used with the {@link TIFFTags#TIFF_FLASH} metadata tag.
+     */
+    int TIFF_FLASH_MODE_AUTO = 3 << 3;
+
+    /**
+     * TIFF flash mode: compulsory off.
+     * This is used with the {@link TIFFTags#TIFF_FLASH} metadata tag.
+     */
+    int TIFF_FLASH_MODE_COMPULSORY_OFF = 2 << 3;
+
+    /**
+     * TIFF flash mode: complsory on.
+     * This is used with the {@link TIFFTags#TIFF_FLASH} metadata tag.
+     */
+    int TIFF_FLASH_MODE_COMPULSORY_ON = 1 << 3;
+
+    /**
+     * TIFF flash mode: unknown.
+     * This is used with the {@link TIFFTags#TIFF_FLASH} metadata tag.
+     */
+    int TIFF_FLASH_MODE_UNKNOWN = 0;
+
+    /**
+     * TIFF flash: flash not present.  Note that this bit is <i>set</i> when
+     * the flash is <i>not</i> present.
+     * This is used with the {@link TIFFTags#TIFF_FLASH} metadata tag.
+     */
+    int TIFF_FLASH_NOT_PRESENT_BIT = 1 << 5;
+
+    /**
+     * TIFF flash: red-eye reduction.
+     * This is used with the {@link TIFFTags#TIFF_FLASH} metadata tag.
+     */
+    int TIFF_FLASH_RED_EYE_BIT = 1 << 6;
+
+    /**
+     * TIFF flash: strobe return sense.
+     * This is used with the {@link TIFFTags#TIFF_FLASH} metadata tag.
+     */
+    int TIFF_FLASH_STROBE_RETURN_BITS = 3 << 1;
 
     /**
      * The size of the TIFF header (in bytes).
@@ -305,11 +392,11 @@ public interface TIFFConstants {
     short TIFF_ORIENTATION_90CCW        = 6;
 
     /**
-     * TIFF orientation: the image is rotated 90 CW and horizontally flipped.
+     * TIFF orientation: the image is rotated 90 CW and vertically flipped.
      * This is one of the possible values for the
      * {@link TIFFTags#TIFF_ORIENTATION} metadata tag.
      */
-    short TIFF_ORIENTATION_90CW_HFLIP   = 7;
+    short TIFF_ORIENTATION_90CW_VFLIP   = 7;
 
     /**
      * TIFF orientation: the image is rotated 90 CW.

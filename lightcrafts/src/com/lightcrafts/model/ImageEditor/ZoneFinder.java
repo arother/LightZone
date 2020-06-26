@@ -2,58 +2,69 @@
 
 package com.lightcrafts.model.ImageEditor;
 
-import com.lightcrafts.model.*;
-import com.lightcrafts.jai.utils.*;
+import com.lightcrafts.image.color.ColorScience;
 import com.lightcrafts.jai.JAIContext;
-import com.lightcrafts.utils.Segment;
-import com.lightcrafts.utils.ColorScience;
-
-import com.lightcrafts.mediax.jai.*;
+import com.lightcrafts.jai.utils.Functions;
+import com.lightcrafts.model.Operation;
+import com.lightcrafts.model.Preview;
+import com.lightcrafts.model.Region;
+import com.lightcrafts.model.ZoneOperation;
 import com.lightcrafts.ui.LightZoneSkin;
+import com.lightcrafts.utils.Segment;
 
+import javax.media.jai.*;
 import java.awt.*;
-import java.awt.event.ComponentAdapter;
-import java.awt.event.ComponentEvent;
 import java.awt.color.ColorSpace;
 import java.awt.color.ICC_ColorSpace;
-import java.awt.color.ICC_ProfileRGB;
 import java.awt.color.ICC_Profile;
+import java.awt.color.ICC_ProfileRGB;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
+import java.awt.geom.AffineTransform;
 import java.awt.image.*;
 import java.awt.image.renderable.ParameterBlock;
-import java.awt.geom.AffineTransform;
+
+import static com.lightcrafts.model.ImageEditor.Locale.LOCALE;
 
 public class ZoneFinder extends Preview implements PaintListener {
-    static final boolean ADJUST_GRAYSCALE = true;
-    final boolean colorMode;
+    private static final boolean ADJUST_GRAYSCALE = true;
+    private final boolean colorMode;
     final ImageEditorEngine engine;
 
+    @Override
     public String getName() {
-        return colorMode ? "Color Zones" : "Zones";
+        return LOCALE.get( colorMode ? "ColorZones_Name" : "Zones_Name" );
     }
 
+    @Override
     public void setDropper(Point p) {
     }
 
+    @Override
     public void addNotify() {
         // This method gets called when this Preview is added.
         engine.update(null, false);
         super.addNotify();
     }
 
+    @Override
     public void removeNotify() {
         // This method gets called when this Preview is removed.
         super.removeNotify();
     }
 
+    @Override
     public void setRegion(Region region) {
         // Fabio: only draw yellow inside the region?
     }
 
+    @Override
     public void setSelected(Boolean selected) {
         if (!selected)
             zones = null;
     }
 
+    @Override
     protected void paintComponent(Graphics graphics) {
         if (zones == null)
             engine.update(null, false);
@@ -78,7 +89,7 @@ public class ZoneFinder extends Preview implements PaintListener {
             transform.setToTranslation(dx, dy);
             try {
                 g.drawRenderedImage(zones, transform);
-            } catch (Exception e) {
+            } catch (RuntimeException e) {
                 e.printStackTrace();
             }
         }
@@ -88,7 +99,7 @@ public class ZoneFinder extends Preview implements PaintListener {
 
     private BufferedImage lastPreview = null;
 
-    public void setFocusedZone(int index) {
+    void setFocusedZone(int index) {
         currentFocusZone = index;
 
         if (!colorMode && ADJUST_GRAYSCALE && lastPreview != null) {
@@ -97,7 +108,7 @@ public class ZoneFinder extends Preview implements PaintListener {
         }
     }
 
-    RenderedImage zones;
+    private RenderedImage zones;
 
     ZoneFinder(ImageEditorEngine engine) {
         this(engine, false);
@@ -109,6 +120,7 @@ public class ZoneFinder extends Preview implements PaintListener {
 
         addComponentListener(
             new ComponentAdapter() {
+                @Override
                 public void componentResized(ComponentEvent event) {
                     if (isShowing()) {
                         engine.update(null, false);
@@ -135,9 +147,8 @@ public class ZoneFinder extends Preview implements PaintListener {
 
         Dimension previewSize = getSize();
 
-        float scale = 1;
         if (visibleRect.width > previewSize.width || visibleRect.height > previewSize.height) {
-            scale = Math.min(previewSize.width / (float) visibleRect.width, previewSize.height / (float) visibleRect.height);
+            final float scale = Math.min(previewSize.width / (float) visibleRect.width, previewSize.height / (float) visibleRect.height);
 
             ParameterBlock pb = new ParameterBlock();
             pb.addSource(image);
@@ -191,7 +202,7 @@ public class ZoneFinder extends Preview implements PaintListener {
     // requantize the segmented image to match the same lightness scale used in the zone mapper
     private static RenderedImage requantize(RenderedImage image, int focusZone) {
         int steps = 16;
-        int colors[] = new int[steps + 1];
+        int[] colors = new int[steps + 1];
         for (int i = 0; i < steps; i++) {
             float color = (float) ((Math.pow(2, i * 8.0 / (steps - 1)) - 1) / 255.);
             float[] srgbColor = Functions.fromLinearToCS(JAIContext.systemColorSpace, new float[] {color, color, color});
@@ -199,7 +210,7 @@ public class ZoneFinder extends Preview implements PaintListener {
         }
         colors[steps] = colors[steps - 1];
 
-        byte lut[][] = new byte[3][256];
+        byte[][] lut = new byte[3][256];
         int step = 0;
         for (int i = 0; i < colors[steps]; i++) {
             if (i > colors[step])
@@ -251,10 +262,13 @@ public class ZoneFinder extends Preview implements PaintListener {
     private RenderedImage segment(RenderedImage image) {
         Rectangle bounds = new Rectangle(image.getMinX(), image.getMinY(), image.getWidth(), image.getHeight());
 
-        byte pixels[] = ((DataBufferByte) image.getData(bounds).getDataBuffer()).getData();
+        byte[] pixels = ((DataBufferByte) image.getData(bounds).getDataBuffer()).getData();
         if (pixels.length != bounds.height * bounds.width * image.getSampleModel().getNumBands()) {
             pixels = (byte[]) image.getData(bounds).getDataElements(bounds.x, bounds.y, bounds.width, bounds.height, null);
         }
+
+        if (pixels.length <= 0 || bounds.height <= 15 || bounds.width <= 15)
+            return null;
 
         pixels = Segment.segmentImage(pixels, colorMode ? 3 : 1, bounds.height, bounds.width);
 
@@ -273,7 +287,7 @@ public class ZoneFinder extends Preview implements PaintListener {
                                                  DataBuffer.TYPE_BYTE);
         }
 
-        RenderedImage result = lastPreview = new BufferedImage(colorModel, (WritableRaster) raster, false, null);
+        RenderedImage result = lastPreview = new BufferedImage(colorModel, raster, false, null);
 
         // requantize the segmented image to match the same lightness scale used in the zone mapper
         if (!colorMode && ADJUST_GRAYSCALE)
@@ -305,11 +319,15 @@ public class ZoneFinder extends Preview implements PaintListener {
                 return false;
         }
 
+        @Override
         public void run() {
             do {
                 if (getSize().width > 0 && getSize().height > 0) {
-                    zones = segment(image);
-                    repaint();
+                    RenderedImage newZones = segment(image);
+                    if (newZones != null) {
+                        zones = newZones;
+                        repaint();
+                    }
                 }
             } while (getNextView());
         }
@@ -323,6 +341,7 @@ public class ZoneFinder extends Preview implements PaintListener {
         This code sets the pipeline on the main thread but performs the actual computation on a worker thread
     */
 
+    @Override
     public void paintDone(PlanarImage image, Rectangle visibleRect, boolean synchronous, long time) {
         Dimension previewDimension = getSize();
 
@@ -331,6 +350,21 @@ public class ZoneFinder extends Preview implements PaintListener {
                && image.getSampleModel().getDataType() == DataBuffer.TYPE_BYTE;
 
         if (previewDimension.getHeight() > 1 && previewDimension.getWidth() > 1) {
+            Operation op = engine.getSelectedOperation();
+            if (op != null && op instanceof ZoneOperation /* && op.isActive() */ ) {
+                PlanarImage processedImage = engine.getRendering(engine.getSelectedOperationIndex() + 1);
+                image = Functions.fromUShortToByte(Functions.toColorSpace(processedImage,
+                                                                          JAIContext.systemColorSpace,
+                                                                          engine.getProofProfile(),
+                                                                          null,
+                                                                          engine.getProofIntent(),
+                                                                          null),
+                                                   null);
+
+                if (image.getSampleModel().getDataType() == DataBuffer.TYPE_USHORT)
+                    image = Functions.fromUShortToByte(image, null);
+            }
+
             if (segmenter == null || !segmenter.isAlive()) {
                 segmenter = new Segmenter(visibleRect, image);
                 segmenter.start();

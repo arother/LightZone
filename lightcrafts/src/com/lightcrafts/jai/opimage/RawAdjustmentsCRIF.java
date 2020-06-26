@@ -2,10 +2,10 @@
 
 package com.lightcrafts.jai.opimage;
 
-import com.lightcrafts.media.jai.opimage.RIFUtil;
+import com.sun.media.jai.opimage.RIFUtil;
 
-import com.lightcrafts.mediax.jai.CRIFImpl;
-import com.lightcrafts.mediax.jai.ImageLayout;
+import javax.media.jai.CRIFImpl;
+import javax.media.jai.ImageLayout;
 import java.awt.image.RenderedImage;
 import java.awt.image.renderable.ParameterBlock;
 import java.awt.*;
@@ -21,8 +21,8 @@ public class RawAdjustmentsCRIF extends CRIFImpl {
      * Creates a new instance of <code>ColorConvertOpImage</code> in the
      * rendered layer.
      *
-     * @param args   The source image and the destination ColorModel.
-     * @param hints  Optionally contains destination image layout.
+     * @param args        The source image and the destination ColorModel.
+     * @param renderHints Optionally contains destination image layout.
      */
     public RenderedImage create(ParameterBlock args,
                                 RenderingHints renderHints) {

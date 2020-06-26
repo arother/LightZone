@@ -48,10 +48,13 @@ public final class SplashImage extends BufferedImage {
     public static String[] getDefaultSplashText( String licenseText ) {
         final String name = Version.getVersionName();
         final String revision = Version.getRevisionNumber();
-        final String versionText = "Version " + name + " (" + revision + ')';
-        if ( licenseText != null )
-            return new String[]{ versionText, licenseText };
-        return new String[]{ versionText };
+        final String versionText = name.isEmpty() ? "Version unknown"
+                : revision.isEmpty()
+                ? "Version " + name
+                : "Version " + name + " (" + revision + ')';
+        return (licenseText != null)
+                ? new String[]{versionText, licenseText}
+                : new String[]{versionText};
     }
 
     ////////// private ////////////////////////////////////////////////////////
@@ -61,7 +64,7 @@ public final class SplashImage extends BufferedImage {
     private String[] m_staticText;      // There is also dynamic text.
 
     private static final Color m_textColor = new Color( 204, 204, 204 );
-    private static final Font m_textFont = new Font( "SansSerif", Font.PLAIN, 10 );
+    private static final Font m_textFont = new Font( "SansSerif", Font.PLAIN, 12 );
     private static final Point m_textLoc = new Point( 57, 107 );
 
     static synchronized BufferedImage backgroundImage() {

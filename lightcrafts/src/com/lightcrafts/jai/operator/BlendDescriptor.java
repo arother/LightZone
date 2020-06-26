@@ -2,10 +2,9 @@
 
 package com.lightcrafts.jai.operator;
 
-import com.lightcrafts.mediax.jai.*;
-import com.lightcrafts.mediax.jai.registry.RenderedRegistryMode;
-import com.lightcrafts.mediax.jai.registry.RenderableRegistryMode;
-import com.lightcrafts.model.ColorSelection;
+import javax.media.jai.*;
+import javax.media.jai.registry.RenderedRegistryMode;
+import javax.media.jai.registry.RenderableRegistryMode;
 
 import java.awt.image.RenderedImage;
 import java.awt.image.renderable.RenderableImage;
@@ -35,7 +34,7 @@ public class BlendDescriptor extends OperationDescriptorImpl {
 
     private static Class[] paramClasses = { String.class, Double.class, ROIShape.class, RenderedImage.class };
     private static String[] paramNames = { "blendingMode", "opacity", "mask", "colorSelection" };
-    private static Object[] paramDefaults = { "Overlay", new Double(1.0), null, null };
+    private static Object[] paramDefaults = { "Overlay", 1.0, null, null };
 
     /** Constructor. */
     public BlendDescriptor() {
@@ -53,11 +52,11 @@ public class BlendDescriptor extends OperationDescriptorImpl {
      *
      * <p>Creates a <code>ParameterBlockJAI</code> from all
      * supplied arguments except <code>hints</code> and invokes
-     * {@link com.lightcrafts.mediax.jai.JAI#create(String,java.awt.image.renderable.ParameterBlock,java.awt.RenderingHints)}.
+     * {@link javax.media.jai.JAI#create(String,java.awt.image.renderable.ParameterBlock,java.awt.RenderingHints)}.
      *
-     * @see com.lightcrafts.mediax.jai.JAI
-     * @see com.lightcrafts.mediax.jai.ParameterBlockJAI
-     * @see com.lightcrafts.mediax.jai.RenderedOp
+     * @see javax.media.jai.JAI
+     * @see javax.media.jai.ParameterBlockJAI
+     * @see javax.media.jai.RenderedOp
      *
      * @param source0 <code>RenderedImage</code> source 0.
      * @param source1 <code>RenderedImage</code> source 1.
@@ -113,7 +112,7 @@ public class BlendDescriptor extends OperationDescriptorImpl {
      *
      * @see JAI
      * @see ParameterBlockJAI
-     * @see com.lightcrafts.mediax.jai.RenderableOp
+     * @see javax.media.jai.RenderableOp
      *
      * @param source0 <code>RenderableImage</code> source 0.
      * @param source1 <code>RenderableImage</code> source 1.

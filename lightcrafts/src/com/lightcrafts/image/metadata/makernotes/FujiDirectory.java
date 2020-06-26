@@ -2,6 +2,7 @@
 
 package com.lightcrafts.image.metadata.makernotes;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.ResourceBundle;
@@ -10,8 +11,10 @@ import com.lightcrafts.image.metadata.ImageMetadataDirectory;
 import com.lightcrafts.image.metadata.ImageMetaTagInfo;
 import com.lightcrafts.image.metadata.ImageMetaType;
 import com.lightcrafts.image.metadata.ImageMetaTags;
+import com.lightcrafts.image.metadata.values.ImageMetaValue;
 import com.lightcrafts.utils.bytebuffer.LCByteBuffer;
 
+import static com.lightcrafts.image.metadata.EXIFConstants.EXIF_HEADER_START_SIZE;
 import static com.lightcrafts.image.metadata.ImageMetaType.*;
 import static com.lightcrafts.image.metadata.makernotes.FujiTags.*;
 
@@ -32,8 +35,13 @@ public final class FujiDirectory extends MakerNotesDirectory {
      * @param buf The {@link LCByteBuffer} the metadata is in.
      * @param offset The offset to the start of the maker-notes.
      * @return Returns said adjustments.
+     * @throws IOException
      */
-    public int[] getMakerNotesAdjustments( LCByteBuffer buf, int offset ) {
+    public int[] getMakerNotesAdjustments( LCByteBuffer buf, int offset )
+        throws IOException
+    {
+        if ( buf.getEquals( 0, "FUJIFILMCCD-RAW", "ASCII" ) )
+            offset -= EXIF_HEADER_START_SIZE;
         //
         // The 12 bytes are:
         //
@@ -67,6 +75,30 @@ public final class FujiDirectory extends MakerNotesDirectory {
     }
 
     ////////// protected //////////////////////////////////////////////////////
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected ImageMetaValue getLongFocalValue() {
+        return getValue( FUJI_MAX_FOCAL_LENGTH );
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected ImageMetaValue getShortFocalValue() {
+        return getValue( FUJI_MIN_FOCAL_LENGTH );
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected ImageMetaValue getMaxApertureValue() {
+        return getValue( FUJI_MAX_APER_AT_MIN_FL );
+    }
 
     /**
      * Get the {@link ResourceBundle} to use for tags.
@@ -129,6 +161,10 @@ public final class FujiDirectory extends MakerNotesDirectory {
         add( FUJI_FOCUS_MODE, "FocusMode", META_USHORT );
         add( FUJI_FOCUS_WARNING, "FocusWarning", META_USHORT );
         add( FUJI_MACRO_MODE, "MacroMode", META_USHORT );
+        add( FUJI_MAX_FOCAL_LENGTH, "MaxFocalLength", META_USHORT );
+        add( FUJI_MAX_APER_AT_MIN_FL, "MaxApertureAtMinFocalLength", META_USHORT );
+        add( FUJI_MAX_APER_AT_MAX_FL, "MaxApertureAtMaxFocalLength", META_USHORT );
+        add( FUJI_MIN_FOCAL_LENGTH, "MinFocalLength", META_USHORT );
         add( FUJI_PICTURE_MODE, "PictureMode", META_USHORT );
         add( FUJI_QUALITY, "Quality", META_STRING );
         add( FUJI_SATURATION, "Saturation", META_USHORT );

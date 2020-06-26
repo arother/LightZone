@@ -2,6 +2,8 @@
 
 package com.lightcrafts.utils.xml;
 
+import lombok.Getter;
+
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
@@ -48,19 +50,23 @@ public class XmlDocument {
         }
         try {
             Transformers = TransformerFactory.newInstance();
-            // Here's how one controls XML output indentation in Java 1.5:
-            if (System.getProperty("java.version").startsWith("1.5")) {
-                Transformers.setAttribute("indent-number", "2");
-            }
         }
         catch (TransformerFactoryConfigurationError e) {
             throw new RuntimeException("Couldn't init XML transformer", e);
         }
+        try {
+            Transformers.setAttribute("indent-number", "2");
+        }
+        catch (IllegalArgumentException e) {
+            // ignore, file will still be correct.
+        }
     }
 
     private Document doc;
-    private XmlNode root;
     private Transformer xform;
+
+    @Getter
+    private XmlNode root;
 
     /**
      * Create a new XmlDocument containing a root XmlNode with the given tag,
@@ -113,10 +119,6 @@ public class XmlDocument {
         root = new XmlNode(e);
     }
 
-    public XmlNode getRoot() {
-        return root;
-    }
-
     public void write(OutputStream out) throws IOException {
         DOMSource source = new DOMSource(doc);
         Writer writer = new OutputStreamWriter(out, "UTF-8");
@@ -153,12 +155,13 @@ public class XmlDocument {
         catch (TransformerConfigurationException e) {
             e.printStackTrace();
         }
-        xform.setOutputProperty(OutputKeys.INDENT, "yes");
-        // Here's how one controls XML output indentation in Java 1.4:
-        xform.setOutputProperty(
-            "{http://xml.apache.org/xalan}indent-amount", "2"
-        );
-        xform.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "yes");
+        if (xform != null) {
+            xform.setOutputProperty(OutputKeys.INDENT, "yes");
+            xform.setOutputProperty(
+                    "{http://xml.apache.org/xalan}indent-amount", "2"
+            );
+            xform.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "yes");
+        }
         return xform;
     }
 
